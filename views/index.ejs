@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI JobCoach</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <%- include('partials/header') %>
+
+    <div id="title">
+        <h1>Welcome to AI JobCoach</h1>
+        <p>Your personal assistant for job hunting powered by AI.</p>
+    </div>
+
+    <div class="login-section">
+   
+        <form id="login-form">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" required>
+            <br>
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required>
+            <br>
+            <button type="submit">Login</button>
+        </form>
+
+        <form id="register-form" action="/register" method="GET">
+            <button type="submit">Register</button>
+        </form>
+
+        <form id="google-oauth-form" action="/auth/google" method="GET">
+            <button type="submit">Login with Google</button>
+        </form>
+    </div>
+
+    <%- include('partials/footer') %>
+</body>
+</html>
