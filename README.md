@@ -33,11 +33,11 @@ We are using a WhatsApp group and Outlook emails to communicate and coordinate.
 
 |Responsibility                      |Team Member(s)              |
 |------------------------------------|----------------------------|
-|Conducting Meetings                 |       Ethan Buhman                     |
-|Maintaining Team Assignment List    |   Victor Santana                      |
-|Ensuring GitHub is Working          |    Xander  Humphreys                        |
-|Maintaining Documentation           |                            |
-|Create & Display Presentations      |     Daniel Acosta                       |
-|Submit Team Assignments             |      Victor Santana                      |
+|Conducting Meetings                 |   Ethan Buhman             |
+|Maintaining Team Assignment List    |   Victor Santana           |
+|Ensuring GitHub is Working          |   Xander  Humphreys        |
+|Maintaining Documentation           |   Victor Santana           |
+|Create & Display Presentations      |   Daniel Acosta            |
+|Submit Team Assignments             |   Ethan Buhman             |
 
 ## Reflections
