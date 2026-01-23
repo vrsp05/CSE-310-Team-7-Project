@@ -1,5 +1,4 @@
-# Project Title
-Job Readiness Coach
+# Job Buddy
 
 ## Team Members
 Ethan Buhman
@@ -8,18 +7,24 @@ Daniel Acosta
 Victor Santana
 
 ## Software Description
-A program that leverages AI to support career development by analyzing resumes, providing targeted feedback, and tailoring content to specific job descriptions.
+Job Buddy is a web application designed to help college students prepare for internships and jobs. The app allows users to enter a job description along with their resume and cover letter. Using AI, Job Buddy analyzes the student’s documents and provides targeted feedback based on the job requirements, helping students improve alignment, wording, and overall quality.
+
+The application also generates personalized interview practice questions based on the job description and the user’s resume. This helps students practice realistic interview scenarios and improve confidence.
+
+Job Buddy will store user data such as resumes, cover letters, job descriptions, and feedback using a PostgreSQL database. The application will be built using HTML, CSS, and JavaScript, with Node.js and Express handling backend logic.
 
 ## Architecture
 We are using Figma to create the outline.
+We are using JavaScript, HTML, CSS for programming languages.
+We are using Node.js and Express for framework.
+We are using SQL and PostgreSQL for data storage.
+We are using VS Code for IDE.
+
 
 ## Software Features
 
-* [ ] Programming Language: HTML, JavaScrip, CSS, and possibly TypeScript.
-* [ ] Type: Web App.
-* [ ] Wireframe: Figma AI created.
-* [ ] Tools: Resume and Cover Letter Feedback, and interview questions based on Job Posting.
-* [ ] Database: PostgreSQL.
+* [ ] Hi
+* [ ] Hello
 
 ## Team Communication
 We are using a WhatsApp group and Outlook emails to communicate and coordinate.
@@ -28,11 +33,11 @@ We are using a WhatsApp group and Outlook emails to communicate and coordinate.
 
 |Responsibility                      |Team Member(s)              |
 |------------------------------------|----------------------------|
-|Conducting Meetings                 |       Ethan Buhman         |
-|Maintaining Team Assignment List    |      Victor Santana        |
-|Ensuring GitHub is Working          |     Xander  Humphreys      |
+|Conducting Meetings                 |       Ethan Buhman                     |
+|Maintaining Team Assignment List    |   Victor Santana                      |
+|Ensuring GitHub is Working          |    Xander  Humphreys                        |
 |Maintaining Documentation           |                            |
-|Create & Display Presentations      |      Daniel Acosta         |
-|Submit Team Assignments             |      Victor Santana        |
+|Create & Display Presentations      |     Daniel Acosta                       |
+|Submit Team Assignments             |      Victor Santana                      |
 
 ## Reflections
