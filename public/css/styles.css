@@ -209,16 +209,18 @@ a:hover {
   border-bottom-color: var(--ink);
 }
 
+
 /* =========================
-   Footer partial (if you have one)
+   Footer partial
 ========================= */
 .site-footer {
-  margin-top: 24px;
-  padding-top: 18px;
+  margin-top: 20px;
+  padding-top: 50px;
   border-top: 2px solid var(--soft-line);
   color: var(--muted);
   text-align: center;
   font-size: 14px;
+  padding-bottom: 50px;
 }
 
 /* =========================
