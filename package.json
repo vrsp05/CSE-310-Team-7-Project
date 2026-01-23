@@ -2,9 +2,10 @@
   "name": "cse-310-team-7-project",
   "version": "1.0.0",
   "description": "Web application to scan a job description and resume to assess tailoring and interview prep.",
-  "main": "index.js",
+  "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js"
   },
   "repository": {
     "type": "git",
