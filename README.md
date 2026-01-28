@@ -1,4 +1,4 @@
-# Job Buddy
+# Job Coach
 
 ## Team Members
 Ethan Buhman
