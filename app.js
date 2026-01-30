@@ -117,6 +117,12 @@ app.get("/dashboard", requireAuth, (req, res) => {
   res.render("dashboard/index", { user: req.session.user });
 });
 
+// Analsysis Page
+
+app.get("/dashboard/analysis", requireAuth, (req, res) => {
+  res.render("dashboard/analysis", { user: req.session.user});
+});
+
 //LOG OUT ROUTE
 app.post("/logout", (req, res) => {
   req.session.destroy(() => res.redirect("/"));
