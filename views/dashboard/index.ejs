@@ -1,22 +1,161 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
-    <link rel="stylesheet" href="/css/styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI JobCoach</title>
+  <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
-    <%- include('../partials/header') %>
+  <%- include('../partials/header') %>
+  <%- include('../partials/authButtons') %>
 
-    <div class="dashboard">
-        <h1>Dashboard</h1>
-        <p>Welcome, </p>
-        <p>This is your dashboard where you can manage your job applications and AI interactions.</p>
-    </div> 
 
-    <%- include('../partials/footer') %>
-    
+
+  <main class="jobcoach-page">
+
+    <!-- Page Title -->
+    <header class="jobcoach-hero">
+      <h1 class="jobcoach-title">AI JobCoach</h1>
+      <p class="jobcoach-subtitle">AI-powered career coaching for your next opportunity</p>
+    </header>
+
+    <!-- Main framed container -->
+    <section class="jobcoach-frame">
+
+      <div class="jobcoach-grid">
+
+        <!-- LEFT: Job Description -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">JOB DESCRIPTION</h2>
+
+            <!-- URL button (you can wire this to backend later) -->
+            <button class="btn btn-outline" type="button" id="btnJobUrl">
+              <span class="icon-link" aria-hidden="true">🔗</span>
+              <span>URL</span>
+            </button>
+          </div>
+
+          <div class="panel-body">
+            <textarea
+              class="job-textarea"
+              name="jobDescription"
+              id="jobDescription"
+              placeholder="Paste job description here..."
+            ></textarea>
+          </div>
+        </div>
+
+        <!-- RIGHT: Resume/Cover Letter -->
+        <div class="panel">
+          <!-- Tabs -->
+          <div class="tabs">
+            <button class="tab tab-active" type="button" data-tab="resume">RESUME</button>
+            <button class="tab" type="button" data-tab="cover">COVER LETTER</button>
+          </div>
+
+          <!-- Resume Tab Content -->
+          <div class="tab-content tab-content-active" id="tab-resume">
+            <div class="upload-box">
+              <div class="upload-icon" aria-hidden="true">📄</div>
+
+              <div class="upload-title">Drag &amp; Drop Resume</div>
+              <div class="upload-subtitle">or click to browse</div>
+
+              <!-- Hidden file input + styled button -->
+              <input class="file-input" type="file" id="resumeFile" accept=".pdf,.doc,.docx" />
+              <button class="btn btn-primary" type="button" id="btnChooseResume">CHOOSE FILE</button>
+
+              <p class="upload-filename" id="resumeFilename">No file selected</p>
+            </div>
+          </div>
+
+          <!-- Cover Letter Tab Content -->
+          <div class="tab-content" id="tab-cover">
+            <div class="upload-box">
+              <div class="upload-icon" aria-hidden="true">📝</div>
+
+              <div class="upload-title">Drag &amp; Drop Cover Letter</div>
+              <div class="upload-subtitle">or click to browse</div>
+
+              <input class="file-input" type="file" id="coverFile" accept=".pdf,.doc,.docx" />
+              <button class="btn btn-primary" type="button" id="btnChooseCover">CHOOSE FILE</button>
+
+              <p class="upload-filename" id="coverFilename">No file selected</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ANALYZE button -->
+      <div class="jobcoach-actions">
+        <button class="btn btn-analyze" type="button" id="btnAnalyze">ANALYZE</button>
+      </div>
+
+    </section>
+  </main>
+
+  <%- include('../partials/footer') %>
+
+  <script>
+    // -----------------------------
+    // Tabs logic (Resume / Cover Letter)
+    // -----------------------------
+    const tabButtons = document.querySelectorAll(".tab");
+    const resumeContent = document.getElementById("tab-resume");
+    const coverContent = document.getElementById("tab-cover");
+
+    tabButtons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        tabButtons.forEach(b => b.classList.remove("tab-active"));
+        btn.classList.add("tab-active");
+
+        const target = btn.dataset.tab;
+        resumeContent.classList.toggle("tab-content-active", target === "resume");
+        coverContent.classList.toggle("tab-content-active", target === "cover");
+      });
+    });
+
+    // -----------------------------
+    // "Choose File" buttons trigger hidden inputs
+    // -----------------------------
+    const resumeFile = document.getElementById("resumeFile");
+    const coverFile = document.getElementById("coverFile");
+
+    document.getElementById("btnChooseResume").addEventListener("click", () => resumeFile.click());
+    document.getElementById("btnChooseCover").addEventListener("click", () => coverFile.click());
+
+    // Show selected file name
+    resumeFile.addEventListener("change", () => {
+      document.getElementById("resumeFilename").textContent =
+        resumeFile.files?.[0]?.name || "No file selected";
+    });
+
+    coverFile.addEventListener("change", () => {
+      document.getElementById("coverFilename").textContent =
+        coverFile.files?.[0]?.name || "No file selected";
+    });
+
+    // -----------------------------
+    // URL button (simple prompt for now)
+    // -----------------------------
+    document.getElementById("btnJobUrl").addEventListener("click", () => {
+      const url = prompt("Paste the job posting URL:");
+      if (!url) return;
+
+      // For now we just paste the URL into the textarea top line.
+      // Later you can call your backend to fetch the job description from URL.
+      const textarea = document.getElementById("jobDescription");
+      textarea.value = `URL: ${url}\n\n` + textarea.value;
+    });
+
+    // -----------------------------
+    // Analyze button (placeholder)
+    // -----------------------------
+    document.getElementById("btnAnalyze").addEventListener("click", () => {
+      alert("Analyze clicked! Next step: send textarea + selected file to your server.");
+    });
+  </script>
 </body>
 </html>
-
