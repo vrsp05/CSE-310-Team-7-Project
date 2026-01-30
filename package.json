@@ -20,7 +20,9 @@
   },
   "homepage": "https://github.com/vrsp05/CSE-310-Team-7-Project#readme",
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "ejs": "^4.0.1",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "express-session": "^1.19.0"
   }
 }

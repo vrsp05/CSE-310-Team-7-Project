@@ -13,6 +13,9 @@
         <h1>Welcome to AI JobCoach</h1>
         <p>Your personal assistant for job hunting powered by AI.</p>
     </div>
+    <% if (error) { %>
+        <p class="error-msg"><%= error %></p>
+    <% } %>
 
     <div class="register-form">
         <h2>Register</h2>
