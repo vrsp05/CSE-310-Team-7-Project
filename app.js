@@ -137,6 +137,13 @@ app.listen(PORT, () => {
   console.log(`Server running on port http://localhost:${PORT}`);
 });
 
+// Database Proof of Connection
+app.get("/db-test", async (req, res) => {
+  const r = await pool.query("select now() as now");
+  res.json(r.rows[0]);
+});
+
+
 
 //MIDDLEWARE
 
