@@ -3,6 +3,7 @@ const path = require("path");
 const fs = require("fs");
 const bcrypt = require("bcrypt");
 const session = require("express-session");
+import { pool } from "./src/db/db.js";
 
 
 const app = express();
@@ -139,8 +140,13 @@ app.listen(PORT, () => {
 
 // Database Proof of Connection
 app.get("/db-test", async (req, res) => {
-  const r = await pool.query("select now() as now");
-  res.json(r.rows[0]);
+  try {
+    const r = await pool.query("select now() as now");
+    res.json(r.rows[0]);
+  } catch (err) {
+    console.error("DB ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 
