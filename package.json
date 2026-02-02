@@ -1,6 +1,7 @@
 {
   "name": "cse-310-team-7-project",
   "version": "1.0.0",
+  "type": "module",
   "description": "Web application to scan a job description and resume to assess tailoring and interview prep.",
   "main": "app.js",
   "scripts": {
@@ -14,7 +15,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/vrsp05/CSE-310-Team-7-Project/issues"
   },
