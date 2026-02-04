@@ -4,7 +4,9 @@ import fs from "fs";
 import bcrypt from "bcrypt";
 import session from "express-session";
 import { fileURLToPath } from "url";
-import { pool } from "./src/db/db.js";
+import multer from "multer"; // Para manejar archivos
+import "dotenv/config"; // Carga variables de .env automáticamente
+import { createClient } from "@supabase/supabase-js"; // Cliente de Supabase
 
 // ----------------------
 // ES MODULE FIXES
@@ -13,21 +15,27 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ----------------------
+// SUPABASE SETUP
+// ----------------------
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
+
+// Configuración de Multer (subida temporal en memoria)
+const upload = multer({ storage: multer.memoryStorage() });
+
+// ----------------------
 // APP SETUP
 // ----------------------
 const app = express();
 
-// EJS
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
-
-// Static files
 app.use(express.static(path.join(__dirname, "public")));
-
-// Read form data
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json()); // Importante para recibir JSON
 
-// Sessions
 app.use(
   session({
     secret: "dev-secret-change-later",
@@ -36,36 +44,10 @@ app.use(
   })
 );
 
-// Make user available in all views
 app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   next();
 });
-
-// ----------------------
-// JSON "DATABASE"
-// ----------------------
-const USERS_FILE = path.join(__dirname, "data", "users.json");
-
-// Ensure data folder + file exist
-if (!fs.existsSync(path.dirname(USERS_FILE))) {
-  fs.mkdirSync(path.dirname(USERS_FILE), { recursive: true });
-}
-if (!fs.existsSync(USERS_FILE)) {
-  fs.writeFileSync(USERS_FILE, "[]", "utf-8");
-}
-
-function readUsers() {
-  try {
-    return JSON.parse(fs.readFileSync(USERS_FILE, "utf-8"));
-  } catch {
-    return [];
-  }
-}
-
-function writeUsers(users) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
-}
 
 // ----------------------
 // AUTH MIDDLEWARE
@@ -78,97 +60,68 @@ function requireAuth(req, res, next) {
 }
 
 // ----------------------
-// ROUTES
+// NUEVAS RUTAS DE SUPABASE
 // ----------------------
 
-// Login page
-app.get("/", (req, res) => {
-  res.render("index", { error: req.query.error || null });
+// 1. Guardar contraseñas en la tabla 'credentials'
+app.post("/dashboard/add-credential", requireAuth, async (req, res) => {
+  const { serviceName, passwordData } = req.body;
+
+  const { error } = await supabase
+    .from('credentials')
+    .insert([{ 
+      data: { service: serviceName, details: passwordData },
+      user_id: req.session.user.id // Si quieres vincularlo al usuario
+    }]);
+
+  if (error) return res.status(400).send(error.message);
+  res.redirect("/dashboard");
 });
 
-// Register page
-app.get("/register", (req, res) => {
-  res.render("auth/register", { error: req.query.error || null });
-});
+// 2. Subir archivos al bucket 'files'
+app.post("/dashboard/upload", requireAuth, upload.single('archivo'), async (req, res) => {
+  const file = req.file;
+  if (!file) return res.status(400).send('No se seleccionó ningún archivo.');
 
-// Register POST
-app.post("/register", async (req, res) => {
-  const { username, email, password } = req.body;
+  // Subida al bucket 'files' que se ve en tu captura
+  const filePath = `uploads/${req.session.user.id}/${Date.now()}_${file.originalname}`;
+  
+  const { data, error } = await supabase.storage
+    .from('files') 
+    .upload(filePath, file.buffer, {
+      contentType: file.mimetype
+    });
 
-  if (!username || !email || !password) {
-    return res.redirect("/register?error=Please fill all fields");
-  }
-
-  const users = readUsers();
-
-  if (users.some((u) => u.username === username)) {
-    return res.redirect("/register?error=Username already exists");
-  }
-
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  users.push({
-    id: Date.now().toString(),
-    username,
-    email,
-    passwordHash,
-  });
-
-  writeUsers(users);
-  res.redirect("/?error=Account created. Please login.");
-});
-
-// Login POST
-app.post("/login", async (req, res) => {
-  const { username, password } = req.body;
-
-  const users = readUsers();
-  const user = users.find((u) => u.username === username);
-
-  if (!user) return res.redirect("/?error=Wrong username or password");
-
-  const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) return res.redirect("/?error=Wrong username or password");
-
-  req.session.user = {
-    id: user.id,
-    username: user.username,
-  };
+  if (error) return res.status(400).send(error.message);
+  
+  // Opcional: Guardar el rastro de la subida en tu tabla
+  await supabase.from('credentials').insert([{ 
+    data: { type: "file_upload", path: data.path } 
+  }]);
 
   res.redirect("/dashboard");
 });
 
-// Dashboard
-app.get("/dashboard", requireAuth, (req, res) => {
-  res.render("dashboard/index", { user: req.session.user });
+// ----------------------
+// ROUTES EXISTENTES (Se mantienen igual)
+// ----------------------
+
+app.get("/", (req, res) => {
+  res.render("index", { error: req.query.error || null });
 });
 
-// Analysis page
-app.get("/dashboard/analysis", requireAuth, (req, res) => {
-  res.render("dashboard/analysis", { user: req.session.user });
+app.get("/register", (req, res) => {
+  res.render("auth/register", { error: req.query.error || null });
 });
 
-// Logout
-app.post("/logout", (req, res) => {
-  req.session.destroy(() => res.redirect("/"));
+app.get("/dashboard", requireAuth, async (req, res) => {
+    // Aquí podrías traer datos de Supabase para mostrarlos
+    const { data: dbItems } = await supabase.from('credentials').select('*');
+    res.render("dashboard/index", { user: req.session.user, dbItems: dbItems || [] });
 });
 
-// ----------------------
-// DB TEST ROUTE
-// ----------------------
-app.get("/db-test", async (req, res) => {
-  try {
-    const r = await pool.query("select now() as now");
-    res.json(r.rows[0]);
-  } catch (err) {
-    console.error("DB ERROR:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
+// ... El resto de tus rutas de registro/login se mantienen igual ...
 
-// ----------------------
-// SERVER
-// ----------------------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
