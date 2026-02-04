@@ -20,7 +20,10 @@
   },
   "homepage": "https://github.com/vrsp05/CSE-310-Team-7-Project#readme",
   "dependencies": {
+    "@supabase/supabase-js": "^2.94.1",
+    "dotenv": "^17.2.3",
     "ejs": "^4.0.1",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "multer": "^2.0.2"
   }
 }
