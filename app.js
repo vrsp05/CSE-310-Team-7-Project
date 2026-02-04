@@ -1,23 +1,33 @@
-const express = require("express");
-const path = require("path");
-const fs = require("fs");
-const bcrypt = require("bcrypt");
-const session = require("express-session");
+import express from "express";
+import path from "path";
+import fs from "fs";
+import bcrypt from "bcrypt";
+import session from "express-session";
+import { fileURLToPath } from "url";
 import { pool } from "./src/db/db.js";
 
+// ----------------------
+// ES MODULE FIXES
+// ----------------------
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
+// ----------------------
+// APP SETUP
+// ----------------------
 const app = express();
 
 // EJS
 app.set("view engine", "ejs");
-app.set("views", "./views");
+app.set("views", path.join(__dirname, "views"));
 
-// Static files (CSS, etc.)
-app.use(express.static("public"));
+// Static files
+app.use(express.static(path.join(__dirname, "public")));
 
-// Read form data (POST)
+// Read form data
 app.use(express.urlencoded({ extended: true }));
 
+// Sessions
 app.use(
   session({
     secret: "dev-secret-change-later",
@@ -26,23 +36,45 @@ app.use(
   })
 );
 
+// Make user available in all views
+app.use((req, res, next) => {
+  res.locals.user = req.session.user || null;
+  next();
+});
 
 // ----------------------
-// JSON "database" helpers
+// JSON "DATABASE"
 // ----------------------
 const USERS_FILE = path.join(__dirname, "data", "users.json");
 
+// Ensure data folder + file exist
+if (!fs.existsSync(path.dirname(USERS_FILE))) {
+  fs.mkdirSync(path.dirname(USERS_FILE), { recursive: true });
+}
+if (!fs.existsSync(USERS_FILE)) {
+  fs.writeFileSync(USERS_FILE, "[]", "utf-8");
+}
+
 function readUsers() {
   try {
-    const raw = fs.readFileSync(USERS_FILE, "utf-8");
-    return JSON.parse(raw);
-  } catch (err) {
+    return JSON.parse(fs.readFileSync(USERS_FILE, "utf-8"));
+  } catch {
     return [];
   }
 }
 
 function writeUsers(users) {
   fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
+}
+
+// ----------------------
+// AUTH MIDDLEWARE
+// ----------------------
+function requireAuth(req, res, next) {
+  if (!req.session.user) {
+    return res.redirect("/?error=Please login first");
+  }
+  next();
 }
 
 // ----------------------
@@ -59,7 +91,7 @@ app.get("/register", (req, res) => {
   res.render("auth/register", { error: req.query.error || null });
 });
 
-// Register POST (create user)
+// Register POST
 app.post("/register", async (req, res) => {
   const { username, email, password } = req.body;
 
@@ -69,13 +101,10 @@ app.post("/register", async (req, res) => {
 
   const users = readUsers();
 
-  // check duplicates
-  const usernameTaken = users.some((u) => u.username === username);
-  if (usernameTaken) {
+  if (users.some((u) => u.username === username)) {
     return res.redirect("/register?error=Username already exists");
   }
 
-  // hash password (DO NOT store plain password)
   const passwordHash = await bcrypt.hash(password, 10);
 
   users.push({
@@ -86,12 +115,10 @@ app.post("/register", async (req, res) => {
   });
 
   writeUsers(users);
-
-  // Go to login
-  return res.redirect("/?error=Account created. Please login.");
+  res.redirect("/?error=Account created. Please login.");
 });
 
-// Login POST (validate + redirect)
+// Login POST
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
@@ -103,7 +130,6 @@ app.post("/login", async (req, res) => {
   const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) return res.redirect("/?error=Wrong username or password");
 
-  // ✅ STORE USER IN SESSION
   req.session.user = {
     id: user.id,
     username: user.username,
@@ -112,33 +138,24 @@ app.post("/login", async (req, res) => {
   res.redirect("/dashboard");
 });
 
-
-// Dashboard page
+// Dashboard
 app.get("/dashboard", requireAuth, (req, res) => {
   res.render("dashboard/index", { user: req.session.user });
 });
 
-// Analsysis Page
-
+// Analysis page
 app.get("/dashboard/analysis", requireAuth, (req, res) => {
-  res.render("dashboard/analysis", { user: req.session.user});
+  res.render("dashboard/analysis", { user: req.session.user });
 });
 
-//LOG OUT ROUTE
+// Logout
 app.post("/logout", (req, res) => {
   req.session.destroy(() => res.redirect("/"));
 });
 
-
-
-
-// Server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port http://localhost:${PORT}`);
-});
-
-// Database Proof of Connection
+// ----------------------
+// DB TEST ROUTE
+// ----------------------
 app.get("/db-test", async (req, res) => {
   try {
     const r = await pool.query("select now() as now");
@@ -149,19 +166,10 @@ app.get("/db-test", async (req, res) => {
   }
 });
 
-
-
-//MIDDLEWARE
-
-function requireAuth(req, res, next) {
-  if (!req.session.user) {
-    return res.redirect("/?error=Please login first");
-  }
-  next();
-}
-
-app.use((req, res, next) => {
-  res.locals.user = req.session.user || null;
-  next();
+// ----------------------
+// SERVER
+// ----------------------
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`✅ Server running at http://localhost:${PORT}`);
 });
-
