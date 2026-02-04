@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analysis Dashboard</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <%- include('../partials/header') %>
+  <%- include('../partials/authButtons') %>
+
+  <main class="jobcoach-page">
+
+    <!-- Top / Back -->
+    <div class="jobcoach-topbar">
+      <a class="btn btn-outline jobcoach-back" href="/jobcoach">
+        <span aria-hidden="true">←</span>
+        <span>BACK</span>
+      </a>
+    </div>
+
+    <!-- Page Title -->
+    <header class="jobcoach-hero jobcoach-hero-compact">
+      <h1 class="jobcoach-title">Analysis Dashboard</h1>
+      <p class="jobcoach-subtitle">Resume vs Job Description Match</p>
+    </header>
+
+    <!-- Main framed container -->
+    <section class="jobcoach-frame jobcoach-frame-dashboard">
+
+      <!-- SCORE -->
+      <section class="jobcoach-score">
+        <div class="score-card">
+          <div class="score-ring" role="img" aria-label="Match score 45 percent">
+            <!-- The ring is pure CSS. Change --score to adjust. -->
+            <div class="score-ring-inner">
+              <div class="score-number">45%</div>
+              <div class="score-label">MATCH SCORE</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- KEYWORDS GRID -->
+      <section class="jobcoach-grid jobcoach-grid-2">
+        <!-- Matching Keywords -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">MATCHING KEYWORDS</h2>
+          </div>
+
+          <div class="panel-body">
+            <ul class="keyword-list">
+              <li></li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Missing Gaps -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">MISSING GAPS</h2>
+          </div>
+
+          <div class="panel-body">
+            <ul class="keyword-list">
+                <li></li>   
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SUGGESTED EDITS -->
+      <section class="panel jobcoach-panel-wide">
+        <div class="panel-header">
+          <h2 class="panel-title">SUGGESTED EDITS</h2>
+        </div>
+
+        <div class="panel-body">
+          <div class="suggested-edits-grid">
+            <div class="suggested-col">
+              <div class="suggested-subtitle">ORIGINAL RESUME/COVER LETTER</div>
+              <div class="suggested-box" id="originalText">
+
+              </div>
+            </div>
+
+            <div class="suggested-col">
+              <div class="suggested-subtitle">SUGGESTED (EDITABLE)</div>
+              <textarea class="suggested-box suggested-box-editable" id="suggestedText">
+
+              </textarea>
+            </div>
+          </div>
+
+          <div class="suggested-actions">
+            <button class="btn btn-outline" type="button" id="btnDownloadOriginal">
+              DOWNLOAD ORIGINAL
+            </button>
+
+            <button class="btn btn-primary" type="button" id="btnDownloadWithChanges">
+              DOWNLOAD WITH CHANGES
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- SELECT INTERVIEWER -->
+      <section class="panel jobcoach-panel-wide">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">SELECT YOUR INTERVIEWER</h2>
+            <p class="panel-subtitle">Choose the interview difficulty level for your practice session</p>
+          </div>
+        </div>
+
+        <div class="panel-body">
+          <div class="interviewer-grid">
+            <button class="interviewer-card" type="button" data-interviewer="mentor">
+              <div class="interviewer-icon" aria-hidden="true">☺</div>
+              <div class="interviewer-info">
+                <div class="interviewer-title">The Encouraging Mentor</div>
+                <div class="interviewer-desc">Friendly, gives hints if you get stuck, and helps you feel comfortable.</div>
+              </div>
+            </button>
+
+            <button class="interviewer-card" type="button" data-interviewer="recruiter">
+              <div class="interviewer-icon" aria-hidden="true">🧳</div>
+              <div class="interviewer-info">
+                <div class="interviewer-title">The Professional Recruiter</div>
+                <div class="interviewer-desc">Neutral, direct, and focused on the facts.</div>
+              </div>
+            </button>
+
+            <button class="interviewer-card" type="button" data-interviewer="executive">
+              <div class="interviewer-icon" aria-hidden="true">◎</div>
+              <div class="interviewer-info">
+                <div class="interviewer-title">The Stern Executive</div>
+                <div class="interviewer-desc">Serious, concise, looks for efficiency and results.</div>
+              </div>
+            </button>
+
+            <button class="interviewer-card" type="button" data-interviewer="hardball">
+              <div class="interviewer-icon" aria-hidden="true">⚡</div>
+              <div class="interviewer-info">
+                <div class="interviewer-title">The Hardball Interviewer</div>
+                <div class="interviewer-desc">Interrupts, questions your answers, and tests your stress resistance.</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div class="jobcoach-footer-action">
+          <button class="btn btn-analyze btn-disabled" type="button" id="btnContinue" disabled>
+            SELECT AN INTERVIEWER TO CONTINUE
+          </button>
+        </div>
+      </section>
+
+    </section>
+  </main>
+
+  <%- include('../partials/footer') %>
+
+  <script>
+    // -----------------------------
+    // SCORE RING: set via CSS var (keeps it easy)
+    // -----------------------------
+    // If you want this dynamic from backend:
+    // document.documentElement.style.setProperty('--score', 72);
+
+    // -----------------------------
+    // Interviewer selection
+    // -----------------------------
+    const cards = document.querySelectorAll('.interviewer-card');
+    const btnContinue = document.getElementById('btnContinue');
+    let selected = null;
+
+    cards.forEach(card => {
+      card.addEventListener('click', () => {
+        cards.forEach(c => c.classList.remove('interviewer-selected'));
+        card.classList.add('interviewer-selected');
+
+        selected = card.dataset.interviewer;
+
+        btnContinue.disabled = false;
+        btnContinue.classList.remove('btn-disabled');
+        btnContinue.textContent = 'CONTINUE';
+      });
+    });
+
+    btnContinue.addEventListener('click', () => {
+      if (!selected) return;
+      alert('Selected interviewer: ' + selected + '. Next step: navigate to your interview flow.');
+      // Example:
+      // window.location.href = `/jobcoach/interview?type=${encodeURIComponent(selected)}`;
+    });
+
+    // -----------------------------
+    // Download buttons (placeholder)
+    // -----------------------------
+    document.getElementById('btnDownloadOriginal').addEventListener('click', () => {
+      alert('Download original clicked. Hook this to your backend.');
+    });
+
+    document.getElementById('btnDownloadWithChanges').addEventListener('click', () => {
+      const suggested = document.getElementById('suggestedText').value;
+      alert('Download with changes clicked. Text length: ' + suggested.length + '. Hook this to your backend.');
+    });
+  </script>
+</body>
+</html>
