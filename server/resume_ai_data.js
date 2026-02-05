@@ -1,4 +1,4 @@
-const RESUME_DATA= {
+export const RESUME_DATA= {
   resume_content: `
 
 WHAT IS A RESUME?:

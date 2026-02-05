@@ -1,4 +1,4 @@
-const INTERVIEW_CONTENT = {
+export const INTERVIEW_CONTENT = {
 
     interview_content:
 

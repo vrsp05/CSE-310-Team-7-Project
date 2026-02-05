@@ -1,4 +1,4 @@
-const COVER_LETTER_DATA = {
+export const COVER_LETTER_DATA = {
 
 cover_letter_content: 
 

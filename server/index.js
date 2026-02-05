@@ -1,3 +1,4 @@
+import { analyzeApplication } from './gemini.js';
 import express from 'express';
 import dotenv from 'dotenv';
 import { supabase } from './db.js';
@@ -21,4 +22,24 @@ app.get('/api/health', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`🚀 Server is flying on http://localhost:${PORT}`);
+});
+
+app.post('/api/analyze', async (req, res) => {
+    try {
+        // Now receiving all THREE pieces of data
+        const { jobDescription, resumeText, coverLetterText } = req.body;
+
+        if (!jobDescription || !resumeText || !coverLetterText) {
+            return res.status(400).json({ error: "Please provide job description, resume, and cover letter." });
+        }
+
+        const feedback = await analyzeApplication(jobDescription, resumeText, coverLetterText);
+
+        res.json({ feedback });
+
+    } catch (error) {
+        // THIS LINE IS THE KEY: It prints the REAL error to your VS Code terminal
+        console.error("DEBUG - Full Gemini Error:", error);
+        res.status(500).json({ error: "The AI coach is having trouble analyzing your files." });
+    }
 });
