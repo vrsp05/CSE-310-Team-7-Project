@@ -120,6 +120,7 @@ app.get("/dashboard", requireAuth, async (req, res) => {
     res.render("dashboard/index", { user: req.session.user, dbItems: dbItems || [] });
 });
 
+
 // ... El resto de tus rutas de registro/login se mantienen igual ...
 
 const PORT = process.env.PORT || 3000;
