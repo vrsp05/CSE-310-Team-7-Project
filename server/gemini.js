@@ -5,6 +5,7 @@ import { RESUME_DATA } from './resume_ai_data.js';
 import { COVER_LETTER_DATA } from './cover_letter_ai_data.js';
 import { INTERVIEW_CONTENT } from './interview_ai_data.js';
 
+// TEMPORARY TEST - DELETE AFTER TESTING
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export async function analyzeApplication(jobDescription, resumeText, coverLetterText) {

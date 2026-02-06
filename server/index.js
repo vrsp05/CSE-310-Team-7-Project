@@ -3,14 +3,25 @@ import express from 'express';
 import dotenv from 'dotenv';
 import { supabase } from './db.js';
 
-// This loads your variables from the .env file
-dotenv.config();
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// This tells Node to look for the .env file exactly where index.js is located
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // This allows your server to understand JSON data sent from the frontend
 app.use(express.json());
+
+// This handles the simple GET request when you visit in the browser
+app.get('/', (req, res) => {
+    res.send("<h1>Job AI Coach Backend is Active!</h1><p>Use PowerShell to test the API routes.</p>");
+});
 
 // A simple test route to make sure the server is alive
 app.get('/api/health', (req, res) => {
