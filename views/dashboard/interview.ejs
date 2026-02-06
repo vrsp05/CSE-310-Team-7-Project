@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interview Session</title>
+
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+  <%- include('../partials/header') %>
+  <%- include('../partials/authButtons') %>
+
+  <main class="jobcoach-page">
+
+    <!-- Top / Back -->
+    <div class="jobcoach-topbar">
+      <a class="btn btn-outline jobcoach-back" href="/jobcoach/analysis">
+        <span aria-hidden="true">←</span>
+        <span>BACK</span>
+      </a>
+    </div>
+
+    <!-- Interview Header -->
+    <header class="jobcoach-hero jobcoach-hero-compact">
+      <h1 class="jobcoach-title">Interview Practice</h1>
+      <p class="jobcoach-subtitle">
+        Interviewer:
+        <strong><%= interviewerType || "Unknown" %></strong>
+      </p>
+    </header>
+
+    <!-- Main Frame -->
+    <section class="jobcoach-frame jobcoach-frame-dashboard">
+
+      <!-- Interview Status -->
+      <section class="panel jobcoach-panel-wide">
+        <div class="panel-header">
+          <h2 class="panel-title">INTERVIEW STATUS</h2>
+        </div>
+
+        <div class="panel-body">
+          <p id="statusText">
+            Click <strong>START</strong> when you are ready to begin.
+          </p>
+        </div>
+      </section>
+
+      <!-- Question Area -->
+      <section class="panel jobcoach-panel-wide">
+        <div class="panel-header">
+          <h2 class="panel-title">QUESTION</h2>
+        </div>
+
+        <div class="panel-body">
+          <div class="suggested-box" id="questionBox">
+            Tell me about yourself.
+          </div>
+        </div>
+      </section>
+
+      <!-- Answer Area -->
+      <section class="panel jobcoach-panel-wide">
+        <div class="panel-header">
+          <h2 class="panel-title">YOUR ANSWER</h2>
+        </div>
+
+        <div class="panel-body">
+          <textarea
+            class="suggested-box suggested-box-editable"
+            id="answerBox"
+            placeholder="Type your answer here..."
+          ></textarea>
+        </div>
+      </section>
+
+      <!-- Controls -->
+      <section class="jobcoach-footer-action">
+        <button class="btn btn-analyze" id="btnStart">
+          START INTERVIEW
+        </button>
+
+        <button class="btn btn-outline btn-disabled" id="btnNext" disabled>
+          NEXT QUESTION
+        </button>
+
+        <button class="btn btn-outline btn-disabled" id="btnEnd" disabled>
+          END INTERVIEW
+        </button>
+      </section>
+
+    </section>
+  </main>
+
+  <%- include('../partials/footer') %>
+
+  <script>
+    // --------------------------------
+    // Interview logic (simple MVP)
+    // --------------------------------
+    const interviewerType = "<%= interviewerType || '' %>";
+
+    const statusText = document.getElementById("statusText");
+    const questionBox = document.getElementById("questionBox");
+    const answerBox = document.getElementById("answerBox");
+
+    const btnStart = document.getElementById("btnStart");
+    const btnNext = document.getElementById("btnNext");
+    const btnEnd = document.getElementById("btnEnd");
+
+    const questions = {
+      mentor: [
+        "Tell me about yourself.",
+        "What are your strengths?",
+        "Can you describe a challenge you overcame?"
+      ],
+      recruiter: [
+        "Why are you interested in this role?",
+        "What experience do you have for this position?",
+        "Why should we hire you?"
+      ],
+      executive: [
+        "Describe a time you led a project.",
+        "How do you make difficult decisions?",
+        "What impact do you want to have in this role?"
+      ],
+      hardball: [
+        "Why are there gaps in your resume?",
+        "Tell me about a failure.",
+        "Why should we NOT hire you?"
+      ]
+    };
+
+    const activeQuestions = questions[interviewerType] || questions.mentor;
+    let index = 0;
+    let started = false;
+
+    btnStart.addEventListener("click", () => {
+      started = true;
+      index = 0;
+      questionBox.textContent = activeQuestions[index];
+      statusText.textContent = "Interview in progress...";
+      btnNext.disabled = false;
+      btnEnd.disabled = false;
+      btnStart.disabled = true;
+    });
+
+    btnNext.addEventListener("click", () => {
+      index++;
+      answerBox.value = "";
+
+      if (index >= activeQuestions.length) {
+        questionBox.textContent = "Interview complete.";
+        statusText.textContent = "You have completed the interview.";
+        btnNext.disabled = true;
+      } else {
+        questionBox.textContent = activeQuestions[index];
+      }
+    });
+
+    btnEnd.addEventListener("click", () => {
+      window.location.href = "/dashboard";
+    });
+  </script>
+</body>
+</html>
