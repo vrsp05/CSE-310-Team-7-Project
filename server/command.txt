@@ -1,0 +1,7 @@
+$body = @{
+    jobDescription = "Junior Software Engineer who knows Node.js and React."
+    resumeText = "I am a student at BYUI. I know HTML and some JavaScript."
+    coverLetterText = "I am very excited to apply for this role because I love coding."
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri http://localhost:5000/api/analyze -Method Post -Body $body -ContentType "application/json"
