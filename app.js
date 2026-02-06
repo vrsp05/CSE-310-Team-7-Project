@@ -148,6 +148,13 @@ app.get("/dashboard/analysis", requireAuth, (req, res) => {
   res.render("dashboard/analysis", { user: req.session.user });
 });
 
+// Interview Page
+
+app.get("/dashboard/interview", requireAuth, (req, res) => {
+  res.render("dashboard/interview", { user: req.session.user });
+});
+
+
 // Logout
 app.post("/logout", (req, res) => {
   req.session.destroy(() => res.redirect("/"));
