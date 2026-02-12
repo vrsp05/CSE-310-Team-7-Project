@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Job AI Coach - Beta Tester</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 40px; background-color: #f0f2f5; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        label { font-weight: bold; display: block; margin-top: 15px; margin-bottom: 5px; color: #333; }
+        textarea { width: 100%; border: 1px solid #ccc; border-radius: 8px; padding: 12px; font-size: 14px; resize: vertical; box-sizing: border-box; }
+        .input-box { height: 120px; }
+        .output-box { height: 250px; background-color: #f9f9f9; color: #444; font-weight: 500; border: 1px solid #007bff; }
+        button { margin-top: 20px; width: 100%; padding: 15px; background-color: #007bff; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; transition: background 0.3s; }
+        button:hover { background-color: #0056b3; }
+        #status { text-align: center; margin-top: 10px; font-weight: bold; color: #007bff; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🚀 Job AI Coach: Application Analyzer</h2>
+    
+    <label for="jobDescription">Job Description</label>
+    <textarea id="jobDescription" class="input-box" placeholder="Paste the job requirements here..."></textarea>
+
+    <label for="resumeText">Your Resume</label>
+    <textarea id="resumeText" class="input-box" placeholder="Paste your resume content here..."></textarea>
+
+    <label for="coverLetterText">Your Cover Letter</label>
+    <textarea id="coverLetterText" class="input-box" placeholder="Paste your cover letter here..."></textarea>
+
+    <button onclick="analyzeApplication()">Analyze My Application</button>
+    <div id="status"></div>
+
+    <label for="aiResponse">Gemini's Feedback</label>
+    <textarea id="aiResponse" class="output-box" readonly placeholder="AI response will appear here..."></textarea>
+</div>
+
+<script>
+    async function analyzeApplication() {
+        const status = document.getElementById('status');
+        const output = document.getElementById('aiResponse');
+        
+        status.innerText = "Coaching in progress... ⏳";
+        output.value = "";
+
+        const payload = {
+            jobDescription: document.getElementById('jobDescription').value,
+            resumeText: document.getElementById('resumeText').value,
+            coverLetterText: document.getElementById('coverLetterText').value
+        };
+
+        try {
+            const response = await fetch('http://localhost:5001/api/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                output.value = result.feedback;
+                status.innerText = "Analysis Complete! ✅";
+            } else {
+                output.value = "Error: " + (result.error || "Something went wrong.");
+                status.innerText = "Failed. ❌";
+            }
+        } catch (error) {
+            output.value = "Connection Error: Is your server running on port 5001?";
+            status.innerText = "Offline. ❌";
+            console.error(error);
+        }
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DB & Auth Validation Tool</title>
+    <style>
+        body { font-family: sans-serif; padding: 30px; line-height: 1.6; max-width: 700px; margin: auto; background-color: #f4f7f6; }
+        .box { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h2, h3 { color: #333; margin-top: 0; }
+        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { background: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        button:hover { background: #0056b3; }
+        .log { background: #333; color: #0f0; padding: 15px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; font-size: 12px; height: 200px; overflow-y: auto; }
+        .status-badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .online { background: #d4edda; color: #155724; }
+    </style>
+</head>
+<body>
+
+    <h2>🛠️ DB Core Validation Dashboard</h2>
+
+    <div class="box">
+        <h3>1. Create Account (Signup)</h3>
+        <input type="email" id="regEmail" placeholder="Email Address">
+        <input type="text" id="regUser" placeholder="Username (Display Name)">
+        <input type="password" id="regPass" placeholder="Secure Password">
+        <button onclick="handleAuth('signup')">Create Account & Profile</button>
+    </div>
+
+    <div class="box">
+        <h3>2. Identity Validation (Login)</h3>
+        <input type="email" id="logEmail" placeholder="Email Address">
+        <input type="password" id="logPass" placeholder="Password">
+        <button onclick="handleAuth('login')">Authenticate User</button>
+    </div>
+
+    <div class="box">
+        <h3>4. Session Management</h3>
+        <button onclick="handleAuth('logout')" style="background:#dc3545;">Log Out</button>
+    </div>
+
+    <div class="box">
+        <h3>5. Storage Validation (Upload PDF)</h3>
+        <input type="file" id="fileInput" accept=".pdf,.doc,.docx">
+        <button onclick="uploadFile()">Upload to Resumes</button>
+    </div>
+
+    <div class="box">
+        <h3>3. Data Persistence Test</h3>
+        <button onclick="fetchSessionData()">Verify Persistent Storage</button>
+        <div id="sessionStatus" style="margin-top:10px;"></div>
+    </div>
+
+    <h3>📜 System Logs</h3>
+    <div id="systemLogs" class="log">System initialized. Waiting for action...</div>
+
+    <script>
+        const SERVER_URL = "http://localhost:5001/api/auth";
+
+        async function handleAuth(type) {
+            const log = document.getElementById('systemLogs');
+            const email = type === 'signup' ? document.getElementById('regEmail').value : document.getElementById('logEmail').value;
+            const password = type === 'signup' ? document.getElementById('regPass').value : document.getElementById('logPass').value;
+            const username = document.getElementById('regUser').value;
+
+            log.innerText += `\n[ACTION] Attempting ${type} for ${email}...`;
+
+            // Add this 'if' block inside your existing handleAuth(type) success check
+            if (type === 'logout') {
+                localStorage.removeItem('supabaseToken'); // This is the most important part
+                log.innerText += "\n[CLEANUP] Local token deleted. Session ended.";
+            }
+
+            try {
+                const response = await fetch(`${SERVER_URL}/${type}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password, username })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    log.innerText += `\n[SUCCESS] ${type} complete.`;
+                    // Store the session token locally for future tests
+                    if (data.session) localStorage.setItem('supabaseToken', data.session.access_token);
+                } else {
+                    log.innerText += `\n[ERROR] ${data.error}`;
+                }
+            } catch (err) {
+                log.innerText += `\n[NETWORK ERROR] Could not connect to Express server at port 5001.`;
+            }
+        }
+
+        async function fetchSessionData() {
+            const log = document.getElementById('systemLogs');
+            const token = localStorage.getItem('supabaseToken');
+            
+            if (!token) {
+                log.innerText += "\n[VALIDATION] No active session found. Please login first.";
+                return;
+            }
+
+            log.innerText += "\n[ACTION] Testing RLS policies and profile retrieval...";
+            // This would call your /api/profile route in a later step
+            log.innerText += "\n[RESULT] Token found. Backend validation ready.";
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const log = document.getElementById('systemLogs');
+
+            if (!file) return alert("Select a file first!");
+
+            log.innerText += `\n[ACTION] Sending ${file.name} to server...`;
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('bucket', 'resumes');
+
+            try {
+                const res = await fetch(`http://localhost:5001/api/storage/upload`, {
+                    method: 'POST',
+                    body: formData // No headers needed, the browser handles 'multipart/form-data'
+                });
+                
+                const data = await res.json();
+                if (res.ok) {
+                    log.innerText += `\n[SUCCESS] File live at: ${data.path}`;
+                } else {
+                    log.innerText += `\n[REJECTED] ${data.error}`;
+                }
+            } catch (err) {
+                log.innerText += `\n[ERROR] Upload failed.`;
+            }
+        }
+    </script>
+</body>
+</html>

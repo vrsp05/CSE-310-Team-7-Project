@@ -1,9 +1,5 @@
-// server/db.js
+import './config.js'; // Load environment variables
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-
-// Load your .env variables
-dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
