@@ -23,8 +23,10 @@ We are using VS Code for IDE.
 
 ## Software Features
 
-* [ ] Hi
-* [ ] Hello
+* Open submission of job postings, resumes, and cover letters for AI analysis and feedback.
+* Intelligent tailoring based on specific job descriptions (skills, keywords, and role alignment).
+* Secure user authentication with private document storage and access control.
+* AI scoring system measuring relevance, consistency, and job compatibility.
 
 ## Team Communication
 We are using a WhatsApp group and Outlook emails to communicate and coordinate.
