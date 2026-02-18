@@ -112,38 +112,51 @@ app.post('/api/auth/logout', async (req, res) => {
 app.post('/api/storage/upload', upload.single('file'), async (req, res) => {
     try {
         const file = req.file;
-        const bucket = req.body.bucket; // Multer puts text fields in body
+        const bucket = req.body.bucket;
 
         if (!file) return res.status(400).json({ error: "No file provided" });
 
-        // Get the logged-in user to find their private folder
+        // 1. Get the logged-in user
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) return res.status(401).json({ error: "Unauthorized" });
 
-        // Upload to Supabase: folder name is the user's ID
-        const { data, error } = await supabase.storage
+        // 2. Upload to Supabase Storage
+        const { data: storageData, error: storageError } = await supabase.storage
             .from(bucket)
             .upload(`${user.id}/${file.originalname}`, file.buffer, {
                 contentType: file.mimetype,
                 upsert: true
             });
 
-        if (error) return res.status(400).json({ error: error.message });
+        if (storageError) return res.status(400).json({ error: storageError.message });
 
-        res.json({ message: "File is now in the bucket!", path: data.path });
+        // 3. Prepare Database insertion
+        let updateData = { user_id: user.id };
+        if (bucket === 'resumes') {
+            updateData.resume_text = storageData.path; 
+        } else if (bucket === 'cover-letters') {
+            updateData.cover_letter_text = storageData.path;
+        }
 
-        // NEW: After the file is in the bucket, log it in the applications table
-        const { error: dbError } = await supabase
+        // 4. Insert into 'applications' table BEFORE sending response
+        const { data: dbData, error: dbError } = await supabase
             .from('applications')
-            .insert([
-                { 
-                    user_id: user.id, 
-                    file_path: data.path, 
-                    file_type: bucket // 'resumes' or 'cover-letters'
-                }
-            ]);
+            .insert([updateData])
+            .select(); // This ensures the DB returns the created row
 
-        if (dbError) console.error("Database Log Error:", dbError.message);
+        if (dbError) {
+            console.error("Database Log Error:", dbError.message);
+            // We still send a 400 because the "Full Action" failed
+            return res.status(400).json({ error: "Storage worked, but DB failed: " + dbError.message });
+        }
+
+        // 5. NOW send the success response
+        console.log(`[DB SUCCESS] Row created:`, dbData);
+        res.json({ 
+            message: "File stored and DB updated!", 
+            path: storageData.path,
+            dbRow: dbData[0] 
+        });
 
     } catch (err) {
         console.error("Server Error:", err);
