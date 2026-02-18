@@ -120,6 +120,12 @@ app.get("/dashboard", requireAuth, async (req, res) => {
     res.render("dashboard/index", { user: req.session.user, dbItems: dbItems || [] });
 });
 
+// ROUTES EXISTENTES
+// -----------------
+
+app.get("/about", (req, res) => {
+  res.render("about", {error: req.query.error || null })
+}); 
 
 // ... El resto de tus rutas de registro/login se mantienen igual ...
 
