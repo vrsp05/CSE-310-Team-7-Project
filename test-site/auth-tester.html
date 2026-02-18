@@ -40,9 +40,11 @@
     </div>
 
     <div class="box">
-        <h3>5. Storage Validation (Upload PDF)</h3>
-        <input type="file" id="fileInput" accept=".pdf,.doc,.docx">
-        <button onclick="uploadFile()">Upload to Resumes</button>
+        <h3>5. Multi-Bucket Validation</h3>
+        <input type="file" id="fileInput">
+        <br><br>
+        <button onclick="uploadFile('resumes')">Upload as Resume</button>
+        <button onclick="uploadFile('cover-letters')" style="background:#6c757d;">Upload as Cover Letter</button>
     </div>
 
     <div class="box">
@@ -106,34 +108,25 @@
             log.innerText += "\n[RESULT] Token found. Backend validation ready.";
         }
 
-        async function uploadFile() {
-            const fileInput = document.getElementById('fileInput');
-            const file = fileInput.files[0];
+       async function uploadFile(targetBucket) {
+            const file = document.getElementById('fileInput').files[0];
             const log = document.getElementById('systemLogs');
 
-            if (!file) return alert("Select a file first!");
-
-            log.innerText += `\n[ACTION] Sending ${file.name} to server...`;
+            if (!file) return alert("Select a file!");
 
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('bucket', 'resumes');
+            formData.append('bucket', targetBucket); // Now dynamic based on the button clicked
 
-            try {
-                const res = await fetch(`http://localhost:5001/api/storage/upload`, {
-                    method: 'POST',
-                    body: formData // No headers needed, the browser handles 'multipart/form-data'
-                });
-                
-                const data = await res.json();
-                if (res.ok) {
-                    log.innerText += `\n[SUCCESS] File live at: ${data.path}`;
-                } else {
-                    log.innerText += `\n[REJECTED] ${data.error}`;
-                }
-            } catch (err) {
-                log.innerText += `\n[ERROR] Upload failed.`;
-            }
+            log.innerText += `\n[ACTION] Sending to ${targetBucket} bucket...`;
+
+            const res = await fetch(`http://localhost:5001/api/storage/upload`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await res.json();
+            log.innerText += `\n[RESULT] ${data.message}. Path: ${data.path}`;
         }
     </script>
 </body>

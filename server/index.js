@@ -132,6 +132,19 @@ app.post('/api/storage/upload', upload.single('file'), async (req, res) => {
 
         res.json({ message: "File is now in the bucket!", path: data.path });
 
+        // NEW: After the file is in the bucket, log it in the applications table
+        const { error: dbError } = await supabase
+            .from('applications')
+            .insert([
+                { 
+                    user_id: user.id, 
+                    file_path: data.path, 
+                    file_type: bucket // 'resumes' or 'cover-letters'
+                }
+            ]);
+
+        if (dbError) console.error("Database Log Error:", dbError.message);
+
     } catch (err) {
         console.error("Server Error:", err);
         res.status(500).json({ error: "Something went wrong on the server" });
