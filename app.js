@@ -469,6 +469,12 @@ app.get('/dashboard/analysis', requireAuth, (req, res) => {
   res.render('dashboard/analysis', { user: req.session.user, aiResult: ai });
 });
 
+// ROUTES EXISTENTES
+// -----------------
+
+app.get("/about", (req, res) => {
+  res.render("about", {error: req.query.error || null })
+}); 
 
 // ... El resto de tus rutas de registro/login se mantienen igual ...
 
