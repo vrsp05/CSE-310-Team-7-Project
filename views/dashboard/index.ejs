@@ -88,10 +88,22 @@
         </div>
       </div>
 
-      <!-- ANALYZE button -->
+      <!-- ANALYZE button (uploads resume + job description and sends to AI) -->
       <div class="jobcoach-actions">
         <button class="btn btn-analyze" type="button" id="btnAnalyze">ANALYZE</button>
       </div>
+
+      <!-- Result preview area -->
+      <section class="jobcoach-frame" style="margin-top:18px;">
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">AI Preview</h2>
+          </div>
+          <div class="panel-body">
+            <div id="geminiOutput" style="margin-top:12px; white-space:pre-wrap; background:#f7f8fa; padding:12px; border-radius:6px; min-height:80px;">No response yet.</div>
+          </div>
+        </div>
+      </section>
 
     </section>
   </main>
@@ -151,10 +163,85 @@
     });
 
     // -----------------------------
-    // Analyze button (placeholder)
+    // Analyze button: upload resume + jobDescription to server, show quick preview,
+    // then redirect to Analysis where full result is rendered from session.
     // -----------------------------
-    document.getElementById("btnAnalyze").addEventListener("click", () => {
-      window.location.href = "/dashboard/analysis";
+    document.getElementById("btnAnalyze").addEventListener("click", async () => {
+      const resume = document.getElementById('resumeFile')?.files?.[0];
+      const jd = document.getElementById('jobDescription')?.value || '';
+      const geminiOutput = document.getElementById('geminiOutput');
+
+      if (!resume) {
+        geminiOutput.textContent = 'Please choose a resume file to upload (PDF, DOCX, or TXT).';
+        return;
+      }
+
+      geminiOutput.textContent = 'Uploading and sending to AI...';
+
+      try {
+        const fd = new FormData();
+        fd.append('resumeFile', resume);
+        fd.append('jobDescription', jd);
+
+        const resp = await fetch('/generate-file', { method: 'POST', credentials: 'same-origin', body: fd });
+        const data = await resp.json();
+        if (!resp.ok) {
+          console.error('AI upload error', data);
+          geminiOutput.textContent = 'AI error: ' + (data?.error || JSON.stringify(data));
+          return;
+        }
+
+        geminiOutput.textContent = 'AI analysis complete — redirecting to Analysis page...';
+        setTimeout(() => { window.location.href = '/dashboard/analysis'; }, 600);
+      } catch (err) {
+        console.error('Network or server error', err);
+        geminiOutput.textContent = 'Network or server error. Check console.';
+      }
+    });
+
+    // -----------------------------
+    // Gemini form: submit via fetch to /api/generate, store result in session server-side,
+    // then redirect to Analysis page on success. Also show progress/errors inline.
+    // -----------------------------
+    const geminiForm = document.getElementById('geminiForm');
+    const geminiJobDescription = document.getElementById('geminiJobDescription');
+    const geminiOutput = document.getElementById('geminiOutput');
+
+    geminiForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const prompt = document.getElementById('geminiInput')?.value || '';
+      const jd = document.getElementById('jobDescription')?.value || '';
+      if (!prompt.trim()) {
+        geminiOutput.textContent = 'Please enter a prompt.';
+        return;
+      }
+
+      geminiOutput.textContent = 'Sending to AI...';
+
+      try {
+        const resp = await fetch('/api/generate', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, jobDescription: jd })
+        });
+
+        const data = await resp.json();
+        if (!resp.ok) {
+          console.error('AI error', data);
+          geminiOutput.textContent = 'AI error: ' + (data?.error?.message || data?.error || JSON.stringify(data));
+          return;
+        }
+
+        // show brief preview then navigate to analysis where full result is displayed
+        geminiOutput.textContent = data.result || 'No result returned.';
+
+        // small delay so user sees feedback, then redirect to analysis page which reads session
+        setTimeout(() => { window.location.href = '/dashboard/analysis'; }, 600);
+      } catch (err) {
+        console.error('Network or server error', err);
+        geminiOutput.textContent = 'Network or server error. Check console.';
+      }
     });
 
   </script>

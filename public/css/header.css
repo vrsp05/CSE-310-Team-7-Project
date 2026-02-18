@@ -13,15 +13,20 @@
     margin: 0;
     display: flex;
     gap: 50px;
+    align-items: center; /* vertically center logo and links */
 }
 .site-nav ul a{
     border-bottom: none;
+    display: inline-flex;
+    align-items: center;
 }
 .site-nav ul li a {
     text-decoration: none;
     color: var(--text-primary);
     font-weight: bold;
     border-bottom: none;
+    display: inline-flex;
+    align-items: center;
 }
 .site-nav ul li a:hover {
     color: var(--accent-color);
@@ -45,6 +50,15 @@
     justify-content: space-between;
     align-items: center;
 }
+
+.logo-image {
+    width: 40px;
+    height: 40px;
+    margin-right: 8px;
+    display: block;
+    object-fit: contain;
+}
+
 @media (max-width: 768px) {
     .site-header-flex {
         flex-direction: column;
@@ -56,3 +70,4 @@
         align-items: center;
     }
 }
+
