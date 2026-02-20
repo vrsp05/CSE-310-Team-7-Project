@@ -187,8 +187,8 @@
 
   <%- include('../partials/footer') %>
 
-  <!-- Safely embed AI payload as application/json to avoid breaking JS parsing -->
-  <script id="aiDataPayload" type="application/json"><%- JSON.stringify(aiResult || null).replace(/</g, '\\u003c') %></script>
+  <!-- Hidden container for server-provided AI JSON (safe from script injection) -->
+  <div id="aiJson" data-ai="<%- JSON.stringify(aiResult || null).replace(/</g, '\\u003c') %>" style="display:none"></div>
 
   <script>
     // -----------------------------
@@ -237,9 +237,17 @@
         setTimeout(()=>URL.revokeObjectURL(url), 3000);
       }
 
-  // Embed server-side AI data (null if none) by parsing the JSON script block above.
-  const aiDataEl = document.getElementById('aiDataPayload');
-  const aiData = aiDataEl ? JSON.parse(aiDataEl.textContent || 'null') : null;
+  // Embed server-side AI data (null if none)
+      // Server-side AI data is embedded in a hidden element to avoid template/js parsing issues.
+      // The element is inserted just before this script tag.
+      const aiJsonEl = document.getElementById('aiJson');
+      let aiData = null;
+      try {
+        if (aiJsonEl && aiJsonEl.dataset && aiJsonEl.dataset.ai) aiData = JSON.parse(aiJsonEl.dataset.ai);
+      } catch (e) {
+        console.error('Failed to parse ai JSON from DOM', e);
+        aiData = null;
+      }
 
       // Toggle resume/jd sections
       const toggleResume = document.getElementById('toggleResume');
