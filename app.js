@@ -243,11 +243,18 @@ app.post('/api/generate', requireAuth, async (req, res) => {
       }
     };
 
-    // try gemini-3 then fall back to gemini-2.5
-    const models = ['gemini-3-flash-preview', 'gemini-2.5-preview'];
+    // Choose models to try. You can set GEMINI_DEFAULT_MODEL in .env to force a specific
+    // model name (e.g. the exact name returned by the ListModels API). By default we
+    // prefer Gemini 3 flash preview.
+    const models = process.env.GEMINI_DEFAULT_MODEL
+      ? [process.env.GEMINI_DEFAULT_MODEL, 'gemini-3-flash-preview']
+      : ['gemini-3-flash-preview'];
     const { resp, data, model } = await callGeminiWithFallback(models, key, body);
     if (!resp || !resp.ok) {
       console.error('Gemini error (all models)', data);
+      if (data && data.error && /not found|not supported|unsupported/i.test(data.error.message || '')) {
+        console.error('Model appears unsupported for this API version. Try calling /debug/list-models to see available models.');
+      }
       return res.status(502).json({ error: data?.error?.message || 'Upstream error', details: data });
     }
 
@@ -320,6 +327,25 @@ app.get('/debug/env', (req, res) => {
   return res.json({ hasKey: true, length: key.length, preview: safe });
 });
 
+// DEBUG: list available models for the current API key. Useful to discover the correct
+// model name and which methods each model supports (generateContent etc.). Returns
+// upstream response directly. Remove or protect in production.
+app.get('/debug/list-models', async (req, res) => {
+  try {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) return res.status(500).json({ error: 'Missing GEMINI_API_KEY in server env' });
+    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`;
+    const resp = await fetch(url);
+    const text = await resp.text();
+    let parsed;
+    try { parsed = JSON.parse(text); } catch (e) { parsed = { raw: text }; }
+    return res.status(resp.status).json(parsed);
+  } catch (err) {
+    console.error('DEBUG /debug/list-models error', err);
+    return res.status(500).json({ error: 'Server error listing models' });
+  }
+});
+
 
 // POST /generate - form submit from dashboard: call Gemini, store result in session, redirect to analysis
 app.post('/generate', requireAuth, async (req, res) => {
@@ -337,11 +363,16 @@ app.post('/generate', requireAuth, async (req, res) => {
     const finalPrompt = systemInstruction ? `${systemInstruction}\n\n${basePrompt}` : basePrompt;
     const body = { contents: [ { parts: [ { text: finalPrompt } ] } ], generationConfig: { thinkingConfig: { include_thoughts: true } } };
 
-    // try gemini-3 then fallback to gemini-2.5
-    const models = ['gemini-3-flash-preview', 'gemini-2.5-preview'];
+    // Prefer GEMINI_DEFAULT_MODEL if set, otherwise prefer Gemini 3 flash preview.
+    const models = process.env.GEMINI_DEFAULT_MODEL
+      ? [process.env.GEMINI_DEFAULT_MODEL, 'gemini-3-flash-preview']
+      : ['gemini-3-flash-preview'];
     const { resp, data, model } = await callGeminiWithFallback(models, key, body);
     if (!resp || !resp.ok) {
       console.error('Gemini error (all models)', data);
+      if (data && data.error && /not found|not supported|unsupported/i.test(data.error.message || '')) {
+        console.error('Model appears unsupported for this API version. Try calling /debug/list-models to see available models.');
+      }
       req.session.last_ai_error = data;
       return res.redirect('/dashboard?error=AI+error');
     }
@@ -423,11 +454,16 @@ app.post('/generate-file', requireAuth, upload.single('resumeFile'), async (req,
 
     const body = { contents: [ { parts: [ { text: finalPrompt } ] } ], generationConfig: { thinkingConfig: { include_thoughts: true } } };
 
-    // try gemini-3 then fallback to gemini-2.5
-    const models = ['gemini-3-flash-preview', 'gemini-2.5-preview'];
+    // Prefer GEMINI_DEFAULT_MODEL if set, otherwise prefer Gemini 3 flash preview.
+    const models = process.env.GEMINI_DEFAULT_MODEL
+      ? [process.env.GEMINI_DEFAULT_MODEL, 'gemini-3-flash-preview']
+      : ['gemini-3-flash-preview'];
     const { resp, data, model } = await callGeminiWithFallback(models, key, body);
     if (!resp || !resp.ok) {
       console.error('Gemini error (all models)', data);
+      if (data && data.error && /not found|not supported|unsupported/i.test(data.error.message || '')) {
+        console.error('Model appears unsupported for this API version. Try calling /debug/list-models to see available models.');
+      }
       return res.status(502).json({ error: data?.error?.message || 'Upstream error', details: data });
     }
 
@@ -469,12 +505,6 @@ app.get('/dashboard/analysis', requireAuth, (req, res) => {
   res.render('dashboard/analysis', { user: req.session.user, aiResult: ai });
 });
 
-// ROUTES EXISTENTES
-// -----------------
-
-app.get("/about", (req, res) => {
-  res.render("about", {error: req.query.error || null })
-}); 
 
 // ... El resto de tus rutas de registro/login se mantienen igual ...
 
