@@ -1,11 +1,12 @@
+import 'dotenv/config'; // Already there, but make sure it's at the very top
 import express from "express";
-import path from "path";  
+import cors from 'cors'; // Add this line
+import path from "path";
 import fs from "fs";
 import bcrypt from "bcrypt";
 import session from "express-session";
 import { fileURLToPath } from "url";
 import multer from "multer"; // Para manejar archivos
-import "dotenv/config"; // Carga variables de .env automáticamente
 import systemInstructionDefault from './config/geminiInstruction.js';
 import { createClient } from "@supabase/supabase-js"; // Cliente de Supabase
 
@@ -30,6 +31,12 @@ const upload = multer({ storage: multer.memoryStorage() });
 // APP SETUP
 // ----------------------
 const app = express();
+
+// Use CORS right after initializing 'app'
+app.use(cors());
+
+// Existing middlewares
+app.use(express.json());
 
 // Simple request logger to help debug routing issues (prints method + path)
 app.use((req, res, next) => {
@@ -481,28 +488,58 @@ app.get("/about", (req, res) => {
 // ----------------------
 // AUTH ROUTES (login / logout)
 // ----------------------
-app.post('/login', async (req, res) => {
-  try {
-    const { username, password } = req.body || {};
-    if (!username || !password) return res.redirect('/?error=Missing+credentials');
+// app.post('/login', async (req, res) => {
+//   try {
+//     const { username, password } = req.body || {};
+//     if (!username || !password) return res.redirect('/?error=Missing+credentials');
 
-    // Read users file (simple dev store)
-    const usersRaw = fs.readFileSync(path.join(__dirname, 'data', 'users.json'), 'utf8');
-    const users = JSON.parse(usersRaw || '[]');
+//     // Read users file (simple dev store)
+//     const usersRaw = fs.readFileSync(path.join(__dirname, 'data', 'users.json'), 'utf8');
+//     const users = JSON.parse(usersRaw || '[]');
 
-    const user = users.find(u => u.username === username);
-    if (!user) return res.redirect('/?error=Invalid+credentials');
+//     const user = users.find(u => u.username === username);
+//     if (!user) return res.redirect('/?error=Invalid+credentials');
 
-    const match = await bcrypt.compare(password, user.passwordHash || user.password || '');
-    if (!match) return res.redirect('/?error=Invalid+credentials');
+//     const match = await bcrypt.compare(password, user.passwordHash || user.password || '');
+//     if (!match) return res.redirect('/?error=Invalid+credentials');
 
-    // Minimal session user object
-    req.session.user = { id: user.id || user.username, username: user.username };
-    return res.redirect('/dashboard');
-  } catch (err) {
-    console.error('Error in /login', err);
-    return res.redirect('/?error=Server+error');
-  }
+//     // Minimal session user object
+//     req.session.user = { id: user.id || user.username, username: user.username };
+//     return res.redirect('/dashboard');
+//   } catch (err) {
+//     console.error('Error in /login', err);
+//     return res.redirect('/?error=Server+error');
+//   }
+// });
+
+// --- NEW SUPABASE AUTH ROUTES ---
+
+// 1. Signup Route (Replaces team's local registration)
+app.post('/api/auth/signup', async (req, res) => {
+    const { email, password, username } = req.body;
+    
+    const { data, error } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+            data: { display_name: username }
+        }
+    });
+
+    if (error) return res.status(400).json({ error: error.message });
+    res.json({ message: "Success! Check your email to confirm.", user: data.user });
+});
+
+// 2. Login Route (Replaces the commented-out bcrypt login)
+app.post('/api/auth/login', async (req, res) => {
+    const { email, password } = req.body;
+    
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    
+    if (error) return res.status(400).json({ error: error.message });
+    
+    // We send the session back to the frontend to store as a token
+    res.json({ message: "Login successful", session: data.session });
 });
 
 app.get('/logout', (req, res) => {
