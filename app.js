@@ -89,11 +89,35 @@ app.use((req, res, next) => {
 // ----------------------
 // AUTH MIDDLEWARE
 // ----------------------
-function requireAuth(req, res, next) {
-  if (!req.session.user) {
-    return res.redirect("/?error=Please login first");
-  }
-  next();
+// function requireAuth(req, res, next) {
+//   if (!req.session.user) {
+//     return res.redirect("/?error=Please login first");
+//   }
+//   next();
+// }
+
+// --- NEW TOKEN-BASED MIDDLEWARE ---
+async function requireAuth(req, res, next) {
+    let token = null;
+
+    // Check for token in cookies (for EJS page loads)
+    if (req.headers.cookie) {
+        const cookies = req.headers.cookie.split(';').map(c => c.trim());
+        const tokenCookie = cookies.find(c => c.startsWith('supabaseToken='));
+        if (tokenCookie) token = tokenCookie.split('=')[1];
+    }
+
+    // If no token, redirect back to login
+    if (!token) return res.redirect('/?error=Please+login+first');
+
+    // Verify token with Supabase
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) return res.redirect('/?error=Session+expired');
+
+    // Make the user available to the EJS templates!
+    res.locals.user = user; 
+    req.user = user;
+    next();
 }
 
 // ----------------------

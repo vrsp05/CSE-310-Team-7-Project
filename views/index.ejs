@@ -19,9 +19,9 @@
         <p class="error-msg"><%= error %></p>
     <% } %>
 
-    <form id="login-form" action="/login" method="POST">
-        <label for="username">Username:</label>
-        <input type="text" id="username" name="username" required>
+<form id="login-form">
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required>
         <br>
 
         <label for="password">Password:</label>
@@ -42,5 +42,45 @@
 
 
     <%- include('partials/footer') %>
+
+<script>
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            // 1. Stop the browser from refreshing the page
+            e.preventDefault(); 
+
+            // 2. Grab the email and password from the form
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                // 3. Send the data to your NEW Supabase route
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // 4. SAVE THE TOKEN: This unlocks the dashboard!
+                    //localStorage.setItem('supabaseToken', data.session.access_token);
+
+                    // Replace the localStorage line with this:
+                    // This saves the token as a cookie that the browser will automatically send
+                    document.cookie = `supabaseToken=${data.session.access_token}; path=/; max-age=3600; SameSite=Strict`;
+                    
+                    // 5. Send the user to the dashboard
+                    window.location.href = '/dashboard';
+                } else {
+                    alert("Login failed: " + (data.error || "Check your credentials."));
+                }
+            } catch (err) {
+                console.error("Login error:", err);
+                alert("An error occurred trying to reach the server.");
+            }
+        });
+    </script>
+
 </body>
 </html>
