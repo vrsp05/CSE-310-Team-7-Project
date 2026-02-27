@@ -221,6 +221,11 @@ app.get("/dashboard", requireAuth, async (req, res) => {
     const { data: dbItems } = await supabase.from('credentials').select('*');
     res.render("dashboard/index", { user: req.session.user, dbItems: dbItems || [] });
 });
+
+app.get("/dashboard/profile", requireAuth, (req, res) => {
+    res.render("dashboard/profile", { user: req.session.user });
+});
+
 // Server-side proxy to call Gemini (uses GEMINI_API_KEY from .env)
 app.post('/api/generate', requireAuth, async (req, res) => {
   try {
@@ -243,11 +248,18 @@ app.post('/api/generate', requireAuth, async (req, res) => {
       }
     };
 
-    // try gemini-3 then fall back to gemini-2.5
-    const models = ['gemini-3-flash-preview', 'gemini-2.5-preview'];
+    // Choose models to try. You can set GEMINI_DEFAULT_MODEL in .env to force a specific
+    // model name (e.g. the exact name returned by the ListModels API). By default we
+    // prefer Gemini 3 flash preview.
+    const models = process.env.GEMINI_DEFAULT_MODEL
+      ? [process.env.GEMINI_DEFAULT_MODEL, 'gemini-3-flash-preview']
+      : ['gemini-3-flash-preview'];
     const { resp, data, model } = await callGeminiWithFallback(models, key, body);
     if (!resp || !resp.ok) {
       console.error('Gemini error (all models)', data);
+      if (data && data.error && /not found|not supported|unsupported/i.test(data.error.message || '')) {
+        console.error('Model appears unsupported for this API version. Try calling /debug/list-models to see available models.');
+      }
       return res.status(502).json({ error: data?.error?.message || 'Upstream error', details: data });
     }
 
@@ -255,8 +267,9 @@ app.post('/api/generate', requireAuth, async (req, res) => {
     const parts = data?.candidates?.[0]?.content?.parts || [];
     let resultText = '';
     parts.forEach(p => {
-      if (p.text) resultText += p.text + '\n';
-      if (p.thought) resultText += `(thought) ${p.thought}\n`;
+      if (!p.thought && p.text) {
+        resultText += p.text + '\n';
+      }
     });
 
     const resultTrim = resultText.trim();
@@ -320,6 +333,25 @@ app.get('/debug/env', (req, res) => {
   return res.json({ hasKey: true, length: key.length, preview: safe });
 });
 
+// DEBUG: list available models for the current API key. Useful to discover the correct
+// model name and which methods each model supports (generateContent etc.). Returns
+// upstream response directly. Remove or protect in production.
+app.get('/debug/list-models', async (req, res) => {
+  try {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) return res.status(500).json({ error: 'Missing GEMINI_API_KEY in server env' });
+    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`;
+    const resp = await fetch(url);
+    const text = await resp.text();
+    let parsed;
+    try { parsed = JSON.parse(text); } catch (e) { parsed = { raw: text }; }
+    return res.status(resp.status).json(parsed);
+  } catch (err) {
+    console.error('DEBUG /debug/list-models error', err);
+    return res.status(500).json({ error: 'Server error listing models' });
+  }
+});
+
 
 // POST /generate - form submit from dashboard: call Gemini, store result in session, redirect to analysis
 app.post('/generate', requireAuth, async (req, res) => {
@@ -337,11 +369,16 @@ app.post('/generate', requireAuth, async (req, res) => {
     const finalPrompt = systemInstruction ? `${systemInstruction}\n\n${basePrompt}` : basePrompt;
     const body = { contents: [ { parts: [ { text: finalPrompt } ] } ], generationConfig: { thinkingConfig: { include_thoughts: true } } };
 
-    // try gemini-3 then fallback to gemini-2.5
-    const models = ['gemini-3-flash-preview', 'gemini-2.5-preview'];
+    // Prefer GEMINI_DEFAULT_MODEL if set, otherwise prefer Gemini 3 flash preview.
+    const models = process.env.GEMINI_DEFAULT_MODEL
+      ? [process.env.GEMINI_DEFAULT_MODEL, 'gemini-3-flash-preview']
+      : ['gemini-3-flash-preview'];
     const { resp, data, model } = await callGeminiWithFallback(models, key, body);
     if (!resp || !resp.ok) {
       console.error('Gemini error (all models)', data);
+      if (data && data.error && /not found|not supported|unsupported/i.test(data.error.message || '')) {
+        console.error('Model appears unsupported for this API version. Try calling /debug/list-models to see available models.');
+      }
       req.session.last_ai_error = data;
       return res.redirect('/dashboard?error=AI+error');
     }
@@ -423,35 +460,61 @@ app.post('/generate-file', requireAuth, upload.single('resumeFile'), async (req,
 
     const body = { contents: [ { parts: [ { text: finalPrompt } ] } ], generationConfig: { thinkingConfig: { include_thoughts: true } } };
 
-    // try gemini-3 then fallback to gemini-2.5
-    const models = ['gemini-3-flash-preview', 'gemini-2.5-preview'];
+    // Prefer GEMINI_DEFAULT_MODEL if set, otherwise prefer Gemini 3 flash preview.
+    const models = process.env.GEMINI_DEFAULT_MODEL
+      ? [process.env.GEMINI_DEFAULT_MODEL, 'gemini-3-flash-preview']
+      : ['gemini-3-flash-preview'];
     const { resp, data, model } = await callGeminiWithFallback(models, key, body);
     if (!resp || !resp.ok) {
       console.error('Gemini error (all models)', data);
+      if (data && data.error && /not found|not supported|unsupported/i.test(data.error.message || '')) {
+        console.error('Model appears unsupported for this API version. Try calling /debug/list-models to see available models.');
+      }
       return res.status(502).json({ error: data?.error?.message || 'Upstream error', details: data });
     }
 
     const parts = data?.candidates?.[0]?.content?.parts || [];
     let resultText = '';
     parts.forEach(p => {
-      if (p.text) resultText += p.text + '\n';
-      if (p.thought) resultText += `(thought) ${p.thought}\n`;
+      if (!p.thought && p.text) {
+        resultText += p.text + '\n';
+      }
     });
 
     const resultTrim = resultText.trim();
 
-    // Extract Edited Resume block if present
-    let editedText = null;
-    const editedMatch = resultTrim.match(/Edited Resume:\s*([\s\S]*?)$/i);
-    if (editedMatch && editedMatch[1]) {
-      editedText = editedMatch[1].trim();
-    } else {
-      const altMatch = resultTrim.match(/Edited Resume[:\-\n\r\s]*([\s\S]*?)(?:\n\n|$)/i);
-      if (altMatch && altMatch[1]) editedText = altMatch[1].trim();
+    // Parse structured JSON response from Gemini
+    let aiJson = null;
+    try {
+      // Strip markdown fences if the model wrapped it anyway
+      const cleaned = resultTrim.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+      aiJson = JSON.parse(cleaned);
+    } catch (e) {
+      console.warn('Gemini response was not valid JSON, storing as plain text', e.message);
     }
 
+    const editedText   = aiJson?.editedResume   || null;
+    const score        = aiJson?.score          ?? null;
+    const matchingKeywords = aiJson?.matchingKeywords || null;
+    const missingGaps  = aiJson?.missingGaps    || null;
+    const summary      = aiJson?.summary        || null;
+    const suggestions  = aiJson?.suggestions    || null;
+
     // store in session for Analysis page
-    try { req.session.last_ai_result = { prompt: basePrompt, result: resultTrim, editedText: editedText || null, raw: data, modelUsed: model }; } catch (e) { console.error(e); }
+    try {
+      req.session.last_ai_result = {
+        prompt: basePrompt,
+        result: resultTrim,
+        editedText,
+        score,
+        matchingKeywords,
+        missingGaps,
+        summary,
+        suggestions,
+        raw: data,
+        modelUsed: model
+      };
+    } catch (e) { console.error(e); }
 
     return res.json({ ok: true, editedText: editedText || null });
   } catch (err) {
@@ -469,12 +532,6 @@ app.get('/dashboard/analysis', requireAuth, (req, res) => {
   res.render('dashboard/analysis', { user: req.session.user, aiResult: ai });
 });
 
-// ROUTES EXISTENTES
-// -----------------
-
-app.get("/about", (req, res) => {
-  res.render("about", {error: req.query.error || null })
-}); 
 
 // ... El resto de tus rutas de registro/login se mantienen igual ...
 
@@ -524,29 +581,26 @@ app.post('/download/corrected-docx', requireAuth, async (req, res) => {
     if (!editedText) return res.status(400).json({ error: 'Missing editedText' });
 
     const { Document, Packer, Paragraph, TextRun } = docxPkg;
-    const doc = new Document();
 
-    // Split text by double newlines into paragraphs/blocks to preserve spacing
+    // Build paragraphs from each line (docx v8+ API: sections passed to constructor)
     const lines = editedText.split(/\r?\n/);
-    const paragraphs = [];
-    lines.forEach(line => {
-      // keep blank lines as paragraph breaks
-      if (line.trim() === '') {
-        paragraphs.push(new Paragraph(''));
-      } else {
-        paragraphs.push(new Paragraph({ children: [ new TextRun(line) ] }));
-      }
+    const children = lines.map(line =>
+      line.trim() === ''
+        ? new Paragraph({})
+        : new Paragraph({ children: [ new TextRun({ text: line, size: 24, font: 'Calibri' }) ] })
+    );
+
+    const doc = new Document({
+      sections: [{ children }]
     });
 
-    doc.addSection({ children: paragraphs });
-
     const buffer = await Packer.toBuffer(doc);
-    const outName = (filename && filename.replace(/\.[^.]+$/, '') ) || 'corrected_resume';
+    const outName = (filename ? filename.replace(/\.[^.]+$/, '') : 'improved_resume');
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="${outName}.docx"`);
     return res.send(buffer);
   } catch (err) {
     console.error('Error building DOCX', err);
-    return res.status(500).json({ error: 'Server error building DOCX' });
+    return res.status(500).json({ error: 'Server error building DOCX: ' + err.message });
   }
 });
