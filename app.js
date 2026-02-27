@@ -221,6 +221,11 @@ app.get("/dashboard", requireAuth, async (req, res) => {
     const { data: dbItems } = await supabase.from('credentials').select('*');
     res.render("dashboard/index", { user: req.session.user, dbItems: dbItems || [] });
 });
+
+app.get("/dashboard/profile", requireAuth, (req, res) => {
+    res.render("dashboard/profile", { user: req.session.user });
+});
+
 // Server-side proxy to call Gemini (uses GEMINI_API_KEY from .env)
 app.post('/api/generate', requireAuth, async (req, res) => {
   try {
@@ -262,8 +267,9 @@ app.post('/api/generate', requireAuth, async (req, res) => {
     const parts = data?.candidates?.[0]?.content?.parts || [];
     let resultText = '';
     parts.forEach(p => {
-      if (p.text) resultText += p.text + '\n';
-      if (p.thought) resultText += `(thought) ${p.thought}\n`;
+      if (!p.thought && p.text) {
+        resultText += p.text + '\n';
+      }
     });
 
     const resultTrim = resultText.trim();
@@ -470,24 +476,45 @@ app.post('/generate-file', requireAuth, upload.single('resumeFile'), async (req,
     const parts = data?.candidates?.[0]?.content?.parts || [];
     let resultText = '';
     parts.forEach(p => {
-      if (p.text) resultText += p.text + '\n';
-      if (p.thought) resultText += `(thought) ${p.thought}\n`;
+      if (!p.thought && p.text) {
+        resultText += p.text + '\n';
+      }
     });
 
     const resultTrim = resultText.trim();
 
-    // Extract Edited Resume block if present
-    let editedText = null;
-    const editedMatch = resultTrim.match(/Edited Resume:\s*([\s\S]*?)$/i);
-    if (editedMatch && editedMatch[1]) {
-      editedText = editedMatch[1].trim();
-    } else {
-      const altMatch = resultTrim.match(/Edited Resume[:\-\n\r\s]*([\s\S]*?)(?:\n\n|$)/i);
-      if (altMatch && altMatch[1]) editedText = altMatch[1].trim();
+    // Parse structured JSON response from Gemini
+    let aiJson = null;
+    try {
+      // Strip markdown fences if the model wrapped it anyway
+      const cleaned = resultTrim.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+      aiJson = JSON.parse(cleaned);
+    } catch (e) {
+      console.warn('Gemini response was not valid JSON, storing as plain text', e.message);
     }
 
+    const editedText   = aiJson?.editedResume   || null;
+    const score        = aiJson?.score          ?? null;
+    const matchingKeywords = aiJson?.matchingKeywords || null;
+    const missingGaps  = aiJson?.missingGaps    || null;
+    const summary      = aiJson?.summary        || null;
+    const suggestions  = aiJson?.suggestions    || null;
+
     // store in session for Analysis page
-    try { req.session.last_ai_result = { prompt: basePrompt, result: resultTrim, editedText: editedText || null, raw: data, modelUsed: model }; } catch (e) { console.error(e); }
+    try {
+      req.session.last_ai_result = {
+        prompt: basePrompt,
+        result: resultTrim,
+        editedText,
+        score,
+        matchingKeywords,
+        missingGaps,
+        summary,
+        suggestions,
+        raw: data,
+        modelUsed: model
+      };
+    } catch (e) { console.error(e); }
 
     return res.json({ ok: true, editedText: editedText || null });
   } catch (err) {
@@ -554,29 +581,26 @@ app.post('/download/corrected-docx', requireAuth, async (req, res) => {
     if (!editedText) return res.status(400).json({ error: 'Missing editedText' });
 
     const { Document, Packer, Paragraph, TextRun } = docxPkg;
-    const doc = new Document();
 
-    // Split text by double newlines into paragraphs/blocks to preserve spacing
+    // Build paragraphs from each line (docx v8+ API: sections passed to constructor)
     const lines = editedText.split(/\r?\n/);
-    const paragraphs = [];
-    lines.forEach(line => {
-      // keep blank lines as paragraph breaks
-      if (line.trim() === '') {
-        paragraphs.push(new Paragraph(''));
-      } else {
-        paragraphs.push(new Paragraph({ children: [ new TextRun(line) ] }));
-      }
+    const children = lines.map(line =>
+      line.trim() === ''
+        ? new Paragraph({})
+        : new Paragraph({ children: [ new TextRun({ text: line, size: 24, font: 'Calibri' }) ] })
+    );
+
+    const doc = new Document({
+      sections: [{ children }]
     });
 
-    doc.addSection({ children: paragraphs });
-
     const buffer = await Packer.toBuffer(doc);
-    const outName = (filename && filename.replace(/\.[^.]+$/, '') ) || 'corrected_resume';
+    const outName = (filename ? filename.replace(/\.[^.]+$/, '') : 'improved_resume');
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="${outName}.docx"`);
     return res.send(buffer);
   } catch (err) {
     console.error('Error building DOCX', err);
-    return res.status(500).json({ error: 'Server error building DOCX' });
+    return res.status(500).json({ error: 'Server error building DOCX: ' + err.message });
   }
 });

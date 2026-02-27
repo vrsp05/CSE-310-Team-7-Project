@@ -5,16 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Analysis Dashboard</title>
   <link rel="stylesheet" href="/css/styles.css" />
+  <meta name="jc-user" content="<%= user ? user.username : 'guest' %>" />
 </head>
 <body>
   <%- include('../partials/header') %>
-  <%- include('../partials/authButtons') %>
 
   <main class="jobcoach-page">
 
     <!-- Top / Back -->
     <div class="jobcoach-topbar">
-      <a class="btn btn-outline jobcoach-back" href="/jobcoach">
+      <a class="btn btn-outline jobcoach-back" href="/dashboard">
         <span aria-hidden="true">←</span>
         <span>BACK</span>
       </a>
@@ -31,55 +31,23 @@
         <div class="panel-header">
           <h2 class="panel-title">AI Analysis Result</h2>
         </div>
+        <div class="panel-body" style="padding:16px;">
+          <!-- Summary rendered as HTML (markdown converted client-side) -->
+          <div id="aiSummaryBox" style="margin-bottom:16px; font-size:15px; color:#333;"></div>
 
-        <div class="panel-body">
-          <!-- Collapsible Resume / Cover Letter -->
-          <button class="btn btn-outline" type="button" id="toggleResume">Show Resume / Cover Letter ▾</button>
-          <div id="resumeSection" style="display:none; margin-top:12px; background:#fff; padding:12px; border-radius:6px; border:1px solid #e6e6e6;">
-            <h4>Resume / Cover Letter</h4>
-            <pre id="rawResume" style="white-space:pre-wrap; max-height:300px; overflow:auto; background:#fafafa; padding:8px; border-radius:4px;">(no resume text available)</pre>
-          </div>
+          <!-- Suggestions list rendered as HTML -->
+          <div id="aiSuggestionsBox"></div>
 
-          <!-- Collapsible Job Description -->
-          <button class="btn btn-outline" type="button" id="toggleJD" style="margin-top:12px;">Show Job Description ▾</button>
-          <div id="jdSection" style="display:none; margin-top:12px; background:#fff; padding:12px; border-radius:6px; border:1px solid #e6e6e6;">
-            <h4>Job Description</h4>
-            <pre id="rawJD" style="white-space:pre-wrap; max-height:300px; overflow:auto; background:#fafafa; padding:8px; border-radius:4px;">(no job description available)</pre>
-          </div>
-
-          <!-- Suggestions are shown via MATCHING KEYWORDS / MISSING GAPS below -->
-
-          <!-- Editable suggested resume/cover letter -->
-          <div style="margin-top:16px; display:flex; gap:12px; align-items:flex-start;">
-            <div style="flex:1;">
-              <div class="suggested-subtitle">ORIGINAL RESUME/COVER LETTER</div>
-              <div class="suggested-box" id="originalText" style="white-space:pre-wrap; max-height:360px; overflow:auto; background:#fff; padding:12px; border:1px solid #e6e6e6; border-radius:6px;">
-
-              </div>
-            </div>
-
-            <div style="flex:1;">
-              <div class="suggested-subtitle">SUGGESTED (EDITABLE)</div>
-              <textarea class="suggested-box suggested-box-editable" id="suggestedText" style="width:100%; height:360px;">
-
-              </textarea>
-
-              <div style="margin-top:8px; display:flex; gap:8px;">
-                <button class="btn btn-outline" type="button" id="btnDownloadOriginal">DOWNLOAD ORIGINAL</button>
-                <button class="btn btn-primary" type="button" id="btnDownloadWithChanges">DOWNLOAD WITH CHANGES</button>
-                <button class="btn" type="button" id="btnPrintSuggested">PRINT</button>
-              </div>
+          <!-- Editable improved resume -->
+          <div style="margin-top:20px;">
+            <div class="suggested-subtitle" style="font-weight:700; margin-bottom:6px;">SUGGESTED RESUME (EDITABLE)</div>
+            <textarea id="suggestedText" style="width:100%; height:320px; font-family:monospace; font-size:13px; padding:10px; border:1px solid #ddd; border-radius:6px;"></textarea>
+            <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="btn btn-primary" type="button" id="btnDownloadWithChanges">⬇ DOWNLOAD AS DOCX</button>
+              <button class="btn btn-outline" type="button" id="btnPrintSuggested">🖨 PRINT</button>
+              <button class="btn btn-outline" type="button" id="btnSaveToProfile">💾 SAVE TO PROFILE</button>
             </div>
           </div>
-
-          <!-- Raw AI Prompt / Response (collapsed by default) -->
-          <details style="margin-top:16px;">
-            <summary>Raw prompt & AI response</summary>
-            <h4>Prompt</h4>
-            <pre style="white-space:pre-wrap;"><%= aiResult.prompt %></pre>
-            <h4>AI Result</h4>
-            <pre id="aiRawResult" style="white-space:pre-wrap;"><%= aiResult.result %></pre>
-          </details>
         </div>
       </section>
     <% } %>
@@ -127,280 +95,179 @@
         </div>
       </section>
 
-      <!-- Suggested edits are handled in the AI Analysis Result section above -->
-
-      <!-- SELECT INTERVIEWER -->
-      <section class="panel jobcoach-panel-wide">
-        <div class="panel-header">
-          <div>
-            <h2 class="panel-title">SELECT YOUR INTERVIEWER</h2>
-            <p class="panel-subtitle">Choose the interview difficulty level for your practice session</p>
-          </div>
-        </div>
-
-        <div class="panel-body">
-          <div class="interviewer-grid">
-            <button class="interviewer-card" type="button" data-interviewer="mentor">
-              <div class="interviewer-icon" aria-hidden="true">☺</div>
-              <div class="interviewer-info">
-                <div class="interviewer-title">The Encouraging Mentor</div>
-                <div class="interviewer-desc">Friendly, gives hints if you get stuck, and helps you feel comfortable.</div>
-              </div>
-            </button>
-
-            <button class="interviewer-card" type="button" data-interviewer="recruiter">
-              <div class="interviewer-icon" aria-hidden="true">🧳</div>
-              <div class="interviewer-info">
-                <div class="interviewer-title">The Professional Recruiter</div>
-                <div class="interviewer-desc">Neutral, direct, and focused on the facts.</div>
-              </div>
-            </button>
-
-            <button class="interviewer-card" type="button" data-interviewer="executive">
-              <div class="interviewer-icon" aria-hidden="true">◎</div>
-              <div class="interviewer-info">
-                <div class="interviewer-title">The Stern Executive</div>
-                <div class="interviewer-desc">Serious, concise, looks for efficiency and results.</div>
-              </div>
-            </button>
-
-            <button class="interviewer-card" type="button" data-interviewer="hardball">
-              <div class="interviewer-icon" aria-hidden="true">⚡</div>
-              <div class="interviewer-info">
-                <div class="interviewer-title">The Hardball Interviewer</div>
-                <div class="interviewer-desc">Interrupts, questions your answers, and tests your stress resistance.</div>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        <div class="jobcoach-footer-action">
-          <button class="btn btn-analyze btn-disabled" type="button" id="btnContinue" disabled>
-            SELECT AN INTERVIEWER TO CONTINUE
-          </button>
-        </div>
-      </section>
-
-
     </section>
   </main>
 
   <%- include('../partials/footer') %>
 
   <!-- Hidden container for server-provided AI JSON (safe from script injection) -->
-  <div id="aiJson" data-ai="<%- JSON.stringify(aiResult || null).replace(/</g, '\\u003c') %>" style="display:none"></div>
+  <script type="application/json" id="aiJson">
+    <%- JSON.stringify(aiResult || null).replace(/</g, '\\u003c') %>
+  </script>
 
   <script>
-    // -----------------------------
-    // SCORE RING: set via CSS var (keeps it easy)
-    // -----------------------------
-    // If you want this dynamic from backend:
-    // document.documentElement.style.setProperty('--score', 72);
+    // ─── Minimal markdown → HTML renderer (bold, italic, headers, bullets) ───
+    function renderMarkdown(text) {
+      if (!text) return '';
+      let html = text
+        // Escape HTML first
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        // Headers
+        .replace(/^### (.+)$/gm, '<h4 style="margin:.6em 0 .2em">$1</h4>')
+        .replace(/^## (.+)$/gm,  '<h3 style="margin:.6em 0 .2em">$1</h3>')
+        .replace(/^# (.+)$/gm,   '<h2 style="margin:.6em 0 .2em">$1</h2>')
+        // Bold + italic
+        .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+        .replace(/\*\*(.+?)\*\*/g,     '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g,         '<em>$1</em>')
+        // Bullet points (- or *)
+        .replace(/^\s*[-*]\s+(.+)$/gm, '<li>$1</li>')
+        // Line breaks
+        .replace(/\n{2,}/g, '</p><p style="margin:.5em 0">')
+        .replace(/\n/g, '<br>');
+      // Wrap loose <li> in <ul>
+      html = html.replace(/(<li>.*<\/li>)/gs, '<ul style="padding-left:1.4em;margin:.4em 0">$1</ul>');
+      return '<p style="margin:.5em 0">' + html + '</p>';
+    }
 
-    // -----------------------------
-    // Interviewer selection
-    // -----------------------------
-    const cards = document.querySelectorAll('.interviewer-card');
-    const btnContinue = document.getElementById('btnContinue');
-    let selected = null;
-
-    cards.forEach(card => {
-      card.addEventListener('click', () => {
-        cards.forEach(c => c.classList.remove('interviewer-selected'));
-        card.classList.add('interviewer-selected');
-
-        selected = card.dataset.interviewer;
-
-        btnContinue.disabled = false;
-        btnContinue.classList.remove('btn-disabled');
-        btnContinue.textContent = 'CONTINUE';
+    // ─── Fill a <ul> element with keyword badge items ───
+    function fillList(el, items) {
+      if (!el) return;
+      el.innerHTML = '';
+      if (!items || items.length === 0) {
+        el.innerHTML = '<li style="color:#aaa;font-style:italic">None found</li>';
+        return;
+      }
+      items.forEach(item => {
+        const li = document.createElement('li');
+        li.style.cssText = 'padding:4px 10px; margin:4px 0; background:#f0f4ff; border-radius:20px; display:inline-block; font-size:13px; font-weight:600;';
+        li.textContent = item;
+        el.appendChild(li);
       });
-    });
+    }
 
-    btnContinue.addEventListener('click', () => {
-      if (!selected) return;
-      // keep selected interviewer in memory for Gemini context
-      alert('Selected interviewer: ' + selected + '. You can now send prompts to Gemini that include this context.');
-    });
+    // ─── Parse server-provided AI JSON ───
+    let aiData = null;
+    try {
+      const el = document.getElementById('aiJson');
+      if (el && el.textContent.trim()) aiData = JSON.parse(el.textContent);
+    } catch(e) { console.error('aiJson parse error', e); }
 
-    // -----------------------------
-    // The real download/print/toggle handlers and AI parsing logic
-    // -----------------------------
-    (function(){
-      // safe helpers
-      function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
-      function downloadText(filename, text){
-        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(()=>URL.revokeObjectURL(url), 3000);
+    if (aiData) {
+      const result = (aiData.result || '').toString();
+
+      // ── 1. Summary ──────────────────────────────────────────────────────
+      const summaryEl = document.getElementById('aiSummaryBox');
+      if (summaryEl) {
+        const summaryText = aiData.summary || '';
+        summaryEl.innerHTML = summaryText ? renderMarkdown(summaryText) : renderMarkdown(result);
       }
 
-  // Embed server-side AI data (null if none)
-      // Server-side AI data is embedded in a hidden element to avoid template/js parsing issues.
-      // The element is inserted just before this script tag.
-      const aiJsonEl = document.getElementById('aiJson');
-      let aiData = null;
-      try {
-        if (aiJsonEl && aiJsonEl.dataset && aiJsonEl.dataset.ai) aiData = JSON.parse(aiJsonEl.dataset.ai);
-      } catch (e) {
-        console.error('Failed to parse ai JSON from DOM', e);
-        aiData = null;
+      // ── 2. Suggestions ──────────────────────────────────────────────────
+      const suggestionsEl = document.getElementById('aiSuggestionsBox');
+      if (suggestionsEl && Array.isArray(aiData.suggestions) && aiData.suggestions.length) {
+        let html = '<strong style="font-size:14px;">💡 Suggestions to improve your resume:</strong><ul style="padding-left:1.4em;margin:.6em 0">';
+        aiData.suggestions.forEach(s => { html += `<li style="margin:.35em 0">${s.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</li>`; });
+        html += '</ul>';
+        suggestionsEl.innerHTML = html;
       }
 
-      // Toggle resume/jd sections
-      const toggleResume = document.getElementById('toggleResume');
-      const resumeSection = document.getElementById('resumeSection');
-      const toggleJD = document.getElementById('toggleJD');
-      const jdSection = document.getElementById('jdSection');
-      toggleResume?.addEventListener('click', () => {
-        const shown = resumeSection.style.display !== 'none';
-        resumeSection.style.display = shown ? 'none' : 'block';
-        toggleResume.textContent = (shown ? 'Show Resume / Cover Letter ▾' : 'Hide Resume / Cover Letter ▴');
-      });
-      toggleJD?.addEventListener('click', () => {
-        const shown = jdSection.style.display !== 'none';
-        jdSection.style.display = shown ? 'none' : 'block';
-        toggleJD.textContent = (shown ? 'Show Job Description ▾' : 'Hide Job Description ▴');
-      });
+      // ── 3. Suggested (edited) resume ────────────────────────────────────
+      const suggestedTextEl = document.getElementById('suggestedText');
+      if (suggestedTextEl) suggestedTextEl.value = aiData.editedText || '';
 
-      // Elements
-      const rawResumeEl = document.getElementById('rawResume');
-      const rawJDEl = document.getElementById('rawJD');
-  const originalTextEl = document.getElementById('originalText');
-  const suggestedTextEl = document.getElementById('suggestedText');
-  const aiRawResultEl = document.getElementById('aiRawResult');
+      // ── 4. Matching Keywords ─────────────────────────────────────────────
+      fillList(document.getElementById('matchingKeywordsList'), aiData.matchingKeywords || []);
 
-      // Score elements
+      // ── 5. Missing Gaps ──────────────────────────────────────────────────
+      fillList(document.getElementById('missingGapsList'), aiData.missingGaps || []);
+
+      // ── 6. Score ring ────────────────────────────────────────────────────
+      let score = parseInt(aiData.score, 10);
+      if (isNaN(score)) {
+        // fallback: try to parse from raw result text
+        const m = result.match(/(?:score|match score)[*:\s]*([0-9]{1,3})\s*(?:%|\/100)?/i);
+        score = m ? parseInt(m[1], 10) : 45;
+      }
+      score = Math.max(0, Math.min(100, score));
+
+      let ringColor = '#dc2626'; // red default
+      if (score >= 80) ringColor = '#16a34a';      // green
+      else if (score >= 60) ringColor = '#d97706'; // orange
+
       const scoreNumberEl = document.getElementById('scoreNumber');
-      const scoreRingEl = document.getElementById('scoreRing');
+      const scoreRingEl   = document.getElementById('scoreRing');
+      if (scoreNumberEl) { scoreNumberEl.textContent = score + '%'; scoreNumberEl.style.color = ringColor; }
+      if (scoreRingEl)   { scoreRingEl.style.background = `conic-gradient(${ringColor} ${score}%, #cfcfd6 0)`; }
 
-      // Download/print buttons
-      const btnDownloadOriginal = document.getElementById('btnDownloadOriginal');
-      const btnDownloadWithChanges = document.getElementById('btnDownloadWithChanges');
-      const btnPrintSuggested = document.getElementById('btnPrintSuggested');
-
-      let resumeText = '';
-      let jdText = '';
-
-      if (aiData) {
-        const prompt = (aiData.prompt || '').toString();
-        const result = (aiData.result || '').toString();
-
-        // Try to extract Resume / Job Description from prompt using expected labels
-        let m = prompt.match(/Resume:\s*([\s\S]*?)\n\s*Job Description:\s*([\s\S]*)/i);
-        if (m) {
-          resumeText = m[1].trim();
-          jdText = m[2].trim();
-        } else if (prompt.toLowerCase().includes('job description')) {
-          const parts = prompt.split(/Job Description:\s*/i);
-          resumeText = parts[0].replace(/Resume:\s*/i,'').trim();
-          jdText = parts[1] ? parts[1].trim() : '';
-        } else {
-          // fallback: put entire prompt into resume area
-          resumeText = prompt.trim();
-          jdText = '';
-        }
-
-        // populate raw views
-        if (rawResumeEl) rawResumeEl.textContent = resumeText || '(no resume text available)';
-        if (rawJDEl) rawJDEl.textContent = jdText || '(no job description available)';
-        if (originalTextEl) originalTextEl.textContent = resumeText || '';
-
-  // Prefer the AI-provided edited resume (if present), otherwise fall back to heuristics
-  let suggestedText = (aiData && aiData.editedText) ? aiData.editedText : (resumeText || result || '');
-  if (suggestedTextEl) suggestedTextEl.value = suggestedText;
-        if (aiRawResultEl) aiRawResultEl.textContent = result || '';
-
-        // Populate Matching Keywords and Missing Gaps by comparing JD -> resume
-        const matchingEl = document.getElementById('matchingKeywordsList');
-        const missingEl = document.getElementById('missingGapsList');
-        if (jdText) {
-          // small stopword list
-          const stop = new Set(['the','and','for','with','that','this','from','your','have','will','able','years','year','their','they','them','but','have','using','use','work','working','ability','role','who','you','are','can','such','which','other','also','must','should']);
-          const tokens = jdText.toLowerCase().replace(/[^a-z0-9\s+-]/g,' ').split(/\s+/).filter(w => w.length>3 && !stop.has(w));
-          const freq = {};
-          tokens.forEach(w => { freq[w] = (freq[w]||0) + 1; });
-          const candidates = Object.keys(freq).sort((a,b) => freq[b]-freq[a]);
-          const matching = [], missing = [];
-          for (let i=0;i<candidates.length;i++){
-            const w = candidates[i];
-            if (matching.length >= 5 && missing.length >= 5) break;
-            if ((resumeText||'').toLowerCase().includes(w)) {
-              if (matching.length < 5) matching.push(w);
-            } else {
-              if (missing.length < 5) missing.push(w);
-            }
-          }
-          fillList(matchingEl, matching);
-          fillList(missingEl, missing);
-        } else {
-          fillList(matchingEl, []);
-          fillList(missingEl, []);
-        }
-
-        // Try to parse numeric score from AI result or provided field
-        let score = null;
-        if (aiData.score) score = parseInt(aiData.score,10);
-        if (!score) {
-          let mscore = result.match(/(?:score|match score)[:\s]*([0-9]{1,3})\s*%?/i) || result.match(/([0-9]{1,3})\s*percent/i);
-          if (mscore) score = parseInt(mscore[1],10);
-        }
-        if (score === null || isNaN(score)) score = 45; // sensible default
-        score = clamp(score, 0, 100);
-
-        // set CSS var and display
+      // ── 7. Download as DOCX ──────────────────────────────────────────────
+      document.getElementById('btnDownloadWithChanges')?.addEventListener('click', async () => {
+        const txt = suggestedTextEl?.value || '';
         try {
-          document.documentElement.style.setProperty('--score', score);
-          if (scoreRingEl) scoreRingEl.style.setProperty('--score', score);
-        } catch (e) { /* ignore */ }
-        if (scoreNumberEl) scoreNumberEl.textContent = score + '%';
+          const resp = await fetch('/download/corrected-docx', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ editedText: txt, filename: 'improved_resume' })
+          });
+          if (!resp.ok) { const j = await resp.json().catch(()=>null); alert('Download failed: ' + (j?.error || resp.statusText)); return; }
+          const blob = new Blob([await resp.arrayBuffer()], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url; a.download = 'improved_resume.docx'; document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 3000);
+        } catch(e) { console.error(e); alert('Download error'); }
+      });
 
-        // color the score number for quick feedback
-        if (scoreNumberEl) {
-          if (score >= 80) scoreNumberEl.style.color = '#16a34a';
-          else if (score >= 60) scoreNumberEl.style.color = '#d97706';
-          else scoreNumberEl.style.color = '#dc2626';
-        }
+      // ── 8. Print ─────────────────────────────────────────────────────────
+      document.getElementById('btnPrintSuggested')?.addEventListener('click', () => {
+        const content = suggestedTextEl?.value || '';
+        const w = window.open('about:blank','_blank');
+        w.document.write('<pre style="white-space:pre-wrap;font-family:inherit;">' + content.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</pre>');
+        w.document.close();
+        setTimeout(() => w.print(), 250);
+      });
 
-        // Hook up downloads and print
-        btnDownloadOriginal?.addEventListener('click', ()=>{
-          const txt = resumeText || aiData.prompt || '';
-          downloadText('original_resume.txt', txt);
+      // ── 9. Save to Profile ───────────────────────────────────────────────
+      document.getElementById('btnSaveToProfile')?.addEventListener('click', () => {
+        const content = suggestedTextEl?.value || '';
+        // Prompt for a title
+        const title = prompt('Name for this resume in your profile:', 'Analyzed Resume — ' + new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
+        if (title === null) return; // user cancelled
+
+        // Get username from page (injected via aiJson's sibling, or fallback)
+        let username = 'guest';
+        try {
+          // header.ejs renders user server-side; read it from a meta tag we'll inject
+          const metaUser = document.querySelector('meta[name="jc-user"]');
+          if (metaUser) username = metaUser.getAttribute('content') || 'guest';
+        } catch(e) {}
+
+        const RESUME_KEY = `jc_resumes_${username}`;
+        let items = [];
+        try { items = JSON.parse(localStorage.getItem(RESUME_KEY) || '[]'); } catch(e) {}
+
+        const newItem = {
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+          title: title.trim() || 'Untitled Resume',
+          notes: '',
+          content,
+          score,
+          createdAt: new Date().toISOString()
+        };
+        items.unshift(newItem);
+        localStorage.setItem(RESUME_KEY, JSON.stringify(items));
+
+        // Show a quick toast-style confirmation
+        const toast = document.createElement('div');
+        toast.textContent = '✅ Saved to Profile!';
+        Object.assign(toast.style, {
+          position:'fixed', bottom:'28px', left:'50%', transform:'translateX(-50%)',
+          background:'#111', color:'#fff', padding:'10px 24px', borderRadius:'24px',
+          fontWeight:'700', fontSize:'14px', zIndex:'9999', transition:'opacity .3s'
         });
-        btnDownloadWithChanges?.addEventListener('click', async ()=>{
-          const txt = (suggestedTextEl && suggestedTextEl.value) ? suggestedTextEl.value : (aiData.result || '');
-          const filename = (aiData && aiData.raw && aiData.raw.filename) ? aiData.raw.filename : 'corrected_resume';
-          try {
-            const resp = await fetch('/download/corrected-docx', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ editedText: txt, filename })
-            });
-            if (!resp.ok) {
-              const j = await resp.json().catch(()=>null);
-              alert('Download failed: ' + (j?.error || resp.statusText));
-              return;
-            }
-            const ab = await resp.arrayBuffer();
-            const blob = new Blob([ab], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = (filename.replace(/\.[^.]+$/, '') || 'corrected_resume') + '.docx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),3000);
-          } catch (e) { console.error(e); alert('Download error'); }
-        });
-        btnPrintSuggested?.addEventListener('click', ()=>{
-          const content = (suggestedTextEl && suggestedTextEl.value) || '';
-          const w = window.open('about:blank','_blank');
-          w.document.write('<pre style="white-space:pre-wrap; font-family:inherit;">' +
-            (content.replace(/&/g,'&amp;').replace(/</g,'&lt;')) + '</pre>');
-          w.document.close();
-          setTimeout(()=>{ w.print(); }, 250);
-        });
-      }
-
-    })();
-
+        document.body.appendChild(toast);
+        setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 400); }, 2500);
+      });
+    }
   </script>
 </body>
 </html>

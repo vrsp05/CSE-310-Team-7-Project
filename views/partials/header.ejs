@@ -1,6 +1,6 @@
 <link rel="stylesheet" href="/css/header.css">
 <header class="site-header">
-    <div class="container">
+    <div class="header-inner">
         <nav class="site-nav">
             <ul>
                 <a href="/dashboard">
@@ -8,8 +8,18 @@
                 </a>
                 <li><a href="/dashboard">Home</a></li>
                 <li><a href="/about">About</a></li>
-                <li><a href="/contact">Contact</a></li>
+                <li><a href="/dashboard/profile">My Profile</a></li>
             </ul>
         </nav>
+
+        <!-- Right side: user info + sign out -->
+        <div class="header-actions">
+            <% if (typeof user !== 'undefined' && user) { %>
+                <span class="header-username">👤 <%= user.username %></span>
+                <a href="/logout" class="header-signout">Sign Out</a>
+            <% } else { %>
+                <a href="/" class="header-signout">Sign In</a>
+            <% } %>
+        </div>
     </div>
-</header>  
+</header>

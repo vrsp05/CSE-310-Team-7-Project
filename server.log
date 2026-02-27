@@ -1,3 +1,7 @@
+
+> cse-310-team-7-project@1.0.0 start
+> node app.js
+
 pdfParse loaded: object [
   'AbortException',
   'FormatError',
@@ -17,98 +21,65 @@ pdfParse loaded: object [
   'getException'
 ]
 ✅ Server running at http://localhost:3000
->> 2026-02-17T20:15:08.783Z GET /
->> 2026-02-17T20:15:08.887Z GET /css/styles.css
->> 2026-02-17T20:15:11.701Z POST /login
->> 2026-02-17T20:15:11.824Z GET /dashboard
->> 2026-02-17T20:15:11.900Z GET /images/logo.png
->> 2026-02-17T20:15:11.900Z GET /css/styles.css
->> 2026-02-17T20:15:11.905Z GET /css/header.css
->> 2026-02-17T20:15:30.221Z POST /generate-file
->> 2026-02-17T20:15:42.680Z GET /dashboard/analysis
->> 2026-02-17T20:15:42.701Z GET /images/logo.png
->> 2026-02-17T20:15:42.701Z GET /css/styles.css
->> 2026-02-17T20:15:42.703Z GET /css/header.css
->> 2026-02-17T20:27:41.670Z GET /
->> 2026-02-17T20:27:41.798Z GET /css/styles.css
->> 2026-02-17T20:27:44.992Z POST /login
->> 2026-02-17T20:27:45.099Z GET /dashboard
->> 2026-02-17T20:27:45.226Z GET /css/styles.css
->> 2026-02-17T20:27:45.227Z GET /images/logo.png
->> 2026-02-17T20:27:45.228Z GET /css/header.css
->> 2026-02-17T20:28:00.333Z POST /generate-file
->> 2026-02-17T20:28:13.078Z GET /dashboard/analysis
->> 2026-02-17T20:28:13.097Z GET /images/logo.png
->> 2026-02-17T20:28:13.097Z GET /css/styles.css
->> 2026-02-17T20:28:13.098Z GET /css/header.css
->> 2026-02-17T20:29:16.908Z GET /jobcoach
->> 2026-02-17T20:29:19.111Z GET /jobcoach
->> 2026-02-17T20:29:21.992Z GET /jobcoach
->> 2026-02-17T20:29:27.760Z GET /
->> 2026-02-17T20:29:27.842Z GET /css/styles.css
->> 2026-02-17T20:29:31.001Z POST /login
->> 2026-02-17T20:29:31.107Z GET /dashboard
->> 2026-02-17T20:29:31.160Z GET /images/logo.png
->> 2026-02-17T20:29:31.160Z GET /css/styles.css
->> 2026-02-17T20:29:31.162Z GET /css/header.css
->> 2026-02-17T20:29:39.704Z POST /generate-file
->> 2026-02-17T20:29:54.967Z GET /dashboard/analysis
->> 2026-02-17T20:29:54.989Z GET /images/logo.png
->> 2026-02-17T20:29:54.989Z GET /css/header.css
->> 2026-02-17T20:29:54.990Z GET /css/styles.css
->> 2026-02-17T20:30:20.200Z GET /jobcoach
->> 2026-02-17T20:36:15.385Z GET /dashboard/analysis
->> 2026-02-17T20:36:15.407Z GET /images/logo.png
->> 2026-02-17T20:36:15.408Z GET /css/styles.css
->> 2026-02-17T20:36:15.409Z GET /css/header.css
->> 2026-02-17T20:36:48.113Z GET /dashboard/analysis
->> 2026-02-17T20:36:48.129Z GET /css/styles.css
->> 2026-02-17T20:36:48.132Z GET /css/header.css
->> 2026-02-17T20:36:48.132Z GET /images/logo.png
->> 2026-02-17T20:37:32.808Z GET /dashboard/analysis
->> 2026-02-17T20:37:32.822Z GET /css/styles.css
->> 2026-02-17T20:37:32.824Z GET /css/header.css
->> 2026-02-17T20:37:32.824Z GET /images/logo.png
->> 2026-02-17T20:38:53.429Z GET /dashboard/analysis
->> 2026-02-17T20:38:53.446Z GET /images/logo.png
->> 2026-02-17T20:38:53.446Z GET /css/header.css
->> 2026-02-17T20:38:53.446Z GET /css/styles.css
->> 2026-02-17T20:39:55.454Z GET /
->> 2026-02-17T20:39:55.501Z GET /css/styles.css
->> 2026-02-17T20:40:02.657Z GET /dashboard/analysis
->> 2026-02-17T20:40:02.673Z GET /css/header.css
->> 2026-02-17T20:40:02.674Z GET /css/styles.css
->> 2026-02-17T20:40:02.675Z GET /images/logo.png
->> 2026-02-17T20:40:11.675Z GET /
->> 2026-02-17T20:40:11.692Z GET /css/styles.css
->> 2026-02-17T20:40:15.593Z POST /login
->> 2026-02-17T20:40:15.701Z GET /dashboard
->> 2026-02-17T20:40:15.757Z GET /css/styles.css
->> 2026-02-17T20:40:15.758Z GET /css/header.css
->> 2026-02-17T20:40:15.759Z GET /images/logo.png
->> 2026-02-17T20:40:37.978Z POST /generate-file
->> 2026-02-17T20:40:50.284Z GET /dashboard/analysis
->> 2026-02-17T20:40:50.297Z GET /css/styles.css
->> 2026-02-17T20:40:50.297Z GET /css/header.css
->> 2026-02-17T20:40:50.298Z GET /images/logo.png
->> 2026-02-17T20:41:19.601Z GET /dashboard/analysis
->> 2026-02-17T20:41:19.618Z GET /css/styles.css
->> 2026-02-17T20:41:19.620Z GET /css/header.css
->> 2026-02-17T20:41:19.620Z GET /images/logo.png
->> 2026-02-17T20:41:22.238Z GET /dashboard
->> 2026-02-17T20:41:22.254Z GET /css/styles.css
->> 2026-02-17T20:41:22.254Z GET /css/header.css
->> 2026-02-17T20:41:22.255Z GET /images/logo.png
->> 2026-02-17T20:41:23.507Z GET /dashboard
->> 2026-02-17T20:41:23.527Z GET /css/styles.css
->> 2026-02-17T20:41:23.527Z GET /css/header.css
->> 2026-02-17T20:41:23.527Z GET /images/logo.png
->> 2026-02-17T20:41:29.870Z POST /generate-file
->> 2026-02-17T20:41:42.908Z GET /dashboard/analysis
->> 2026-02-17T20:41:42.928Z GET /css/styles.css
->> 2026-02-17T20:41:42.928Z GET /css/header.css
->> 2026-02-17T20:41:42.929Z GET /images/logo.png
->> 2026-02-17T20:59:35.767Z GET /
->> 2026-02-17T20:59:35.787Z GET /css/styles.css
->> 2026-02-17T21:15:06.620Z GET /
->> 2026-02-17T21:15:06.677Z GET /css/styles.css
+>> 2026-02-27T03:20:37.844Z GET /
+>> 2026-02-27T03:20:37.974Z GET /css/styles.css
+>> 2026-02-27T03:20:40.622Z POST /login
+>> 2026-02-27T03:20:40.702Z GET /dashboard
+>> 2026-02-27T03:20:40.796Z GET /css/styles.css
+>> 2026-02-27T03:20:40.796Z GET /css/header.css
+>> 2026-02-27T03:20:40.797Z GET /images/logo.png
+>> 2026-02-27T03:20:45.048Z GET /dashboard/profile
+>> 2026-02-27T03:20:45.069Z GET /css/styles.css
+>> 2026-02-27T03:20:45.071Z GET /css/header.css
+>> 2026-02-27T03:20:45.071Z GET /css/profile.css
+>> 2026-02-27T03:20:45.071Z GET /images/logo.png
+>> 2026-02-27T03:21:37.707Z GET /dashboard
+>> 2026-02-27T03:21:37.730Z GET /css/header.css
+>> 2026-02-27T03:21:37.731Z GET /css/styles.css
+>> 2026-02-27T03:21:37.732Z GET /images/logo.png
+>> 2026-02-27T03:21:46.357Z POST /generate-file
+Gemini model gemini-3-flash-preview returned 503 {
+  error: {
+    code: 503,
+    message: 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.',
+    status: 'UNAVAILABLE'
+  }
+}
+Gemini error (all models) {
+  error: {
+    code: 503,
+    message: 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.',
+    status: 'UNAVAILABLE'
+  }
+}
+>> 2026-02-27T03:25:26.640Z POST /generate-file
+>> 2026-02-27T03:26:14.841Z GET /dashboard/analysis
+>> 2026-02-27T03:26:14.863Z GET /css/styles.css
+>> 2026-02-27T03:26:14.863Z GET /css/header.css
+>> 2026-02-27T03:26:14.864Z GET /images/logo.png
+>> 2026-02-27T03:26:25.160Z GET /dashboard/profile
+>> 2026-02-27T03:26:25.178Z GET /css/styles.css
+>> 2026-02-27T03:26:25.179Z GET /css/profile.css
+>> 2026-02-27T03:26:25.179Z GET /css/header.css
+>> 2026-02-27T03:26:25.179Z GET /images/logo.png
+>> 2026-02-27T18:23:48.777Z GET /
+>> 2026-02-27T18:23:48.922Z GET /css/styles.css
+>> 2026-02-27T18:23:52.157Z POST /login
+>> 2026-02-27T18:23:52.273Z GET /dashboard
+>> 2026-02-27T18:23:52.363Z GET /css/styles.css
+>> 2026-02-27T18:23:52.367Z GET /css/header.css
+>> 2026-02-27T18:23:52.367Z GET /images/logo.png
+>> 2026-02-27T18:23:54.777Z GET /dashboard/profile
+>> 2026-02-27T18:23:54.812Z GET /css/styles.css
+>> 2026-02-27T18:23:54.813Z GET /css/header.css
+>> 2026-02-27T18:23:54.816Z GET /images/logo.png
+>> 2026-02-27T18:23:54.816Z GET /css/profile.css
+>> 2026-02-27T18:24:01.943Z GET /dashboard
+>> 2026-02-27T18:24:01.971Z GET /css/styles.css
+>> 2026-02-27T18:24:01.977Z GET /css/header.css
+>> 2026-02-27T18:24:01.978Z GET /images/logo.png
+>> 2026-02-27T18:24:13.509Z POST /generate-file
+>> 2026-02-27T18:24:32.683Z GET /dashboard/analysis
+>> 2026-02-27T18:24:32.707Z GET /css/header.css
+>> 2026-02-27T18:24:32.708Z GET /images/logo.png
+>> 2026-02-27T18:24:32.708Z GET /css/styles.css
