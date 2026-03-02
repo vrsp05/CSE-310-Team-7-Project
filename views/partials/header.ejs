@@ -8,17 +8,37 @@
                 </a>
                 <li><a href="/dashboard">Home</a></li>
                 <li><a href="/about">About</a></li>
-                <li><a href="/dashboard/profile">My Profile</a></li>
             </ul>
         </nav>
 
         <div class="header-actions">
             <% if (typeof user !== 'undefined' && user) { %>
-                <span class="header-username">Hello <%= user.username %>!</span>
-                <a href="/logout" class="header-signout">Sign Out</a>
+                <div class="header-user-menu">
+                    <button class="header-username" id="userMenuBtn">
+                        👤 Hello, <%= user.username %>! ▾
+                    </button>
+                    <div class="header-dropdown" id="userDropdown">
+                        <a href="/dashboard/profile" class="header-dropdown-item">My Profile</a>
+                        <a href="/logout" class="header-dropdown-item header-dropdown-signout">Sign Out</a>
+                    </div>
+                </div>
             <% } else { %>
                 <a href="/" class="header-signout">Sign In</a>
             <% } %>
         </div>
     </div>
 </header>
+
+<script>
+    const userMenuBtn = document.getElementById('userMenuBtn');
+    const userDropdown = document.getElementById('userDropdown');
+    if (userMenuBtn) {
+        userMenuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            userDropdown.classList.toggle('header-dropdown-open');
+        });
+        document.addEventListener('click', () => {
+            userDropdown.classList.remove('header-dropdown-open');
+        });
+    }
+</script>
