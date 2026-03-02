@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import path from "path";  
 import fs from "fs";
 import bcrypt from "bcrypt";
@@ -30,6 +31,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 // APP SETUP
 // ----------------------
 const app = express();
+app.use(cors());
 
 // Simple request logger to help debug routing issues (prints method + path)
 app.use((req, res, next) => {
@@ -82,11 +84,29 @@ app.use((req, res, next) => {
 // ----------------------
 // AUTH MIDDLEWARE
 // ----------------------
-function requireAuth(req, res, next) {
-  if (!req.session.user) {
-    return res.redirect("/?error=Please login first");
-  }
-  next();
+// function requireAuth(req, res, next) {
+//   if (!req.session.user) {
+//     return res.redirect("/?error=Please login first");
+//   }
+//   next();
+// }
+async function requireAuth(req, res, next) {
+    let token = null;
+
+    if (req.headers.cookie) {
+        const cookies = req.headers.cookie.split(';').map(c => c.trim());
+        const tokenCookie = cookies.find(c => c.startsWith('supabaseToken='));
+        if (tokenCookie) token = tokenCookie.split('=')[1];
+    }
+
+    if (!token) return res.redirect('/?error=Please+login+first');
+
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) return res.redirect('/?error=Session+expired');
+
+    res.locals.user = user; 
+    req.user = user;
+    next();
 }
 
 // ----------------------
@@ -542,34 +562,28 @@ app.get('/dashboard/analysis', requireAuth, (req, res) => {
 // ----------------------
 // AUTH ROUTES (login / logout)
 // ----------------------
-app.post('/login', async (req, res) => {
-  try {
-    const { username, password } = req.body || {};
-    if (!username || !password) return res.redirect('/?error=Missing+credentials');
-
-    // Read users file (simple dev store)
-    const usersRaw = fs.readFileSync(path.join(__dirname, 'data', 'users.json'), 'utf8');
-    const users = JSON.parse(usersRaw || '[]');
-
-    const user = users.find(u => u.username === username);
-    if (!user) return res.redirect('/?error=Invalid+credentials');
-
-    const match = await bcrypt.compare(password, user.passwordHash || user.password || '');
-    if (!match) return res.redirect('/?error=Invalid+credentials');
-
-    // Minimal session user object
-    req.session.user = { id: user.id || user.username, username: user.username };
-    return res.redirect('/dashboard');
-  } catch (err) {
-    console.error('Error in /login', err);
-    return res.redirect('/?error=Server+error');
-  }
+app.post('/api/auth/signup', async (req, res) => {
+    const { email, password, username } = req.body;
+    const { data, error } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: { data: { display_name: username } }
+    });
+    if (error) return res.status(400).json({ error: error.message });
+    res.json({ message: "Success! Check your email to confirm.", user: data.user });
 });
 
-app.get('/logout', (req, res) => {
-  req.session.destroy(() => {
+app.post('/api/auth/login', async (req, res) => {
+    const { email, password } = req.body;
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return res.status(400).json({ error: error.message });
+    res.json({ message: "Login successful", session: data.session });
+});
+
+app.get('/logout', async (req, res) => {
+    await supabase.auth.signOut();
+    res.setHeader('Set-Cookie', 'supabaseToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;');
     res.redirect('/');
-  });
 });
 
 const PORT = process.env.PORT || 3000;
