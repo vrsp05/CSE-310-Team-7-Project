@@ -113,43 +113,94 @@ async function requireAuth(req, res, next) {
 // NUEVAS RUTAS DE SUPABASE
 // ----------------------
 
-// 1. Guardar contraseñas en la tabla 'credentials'
-app.post("/dashboard/add-credential", requireAuth, async (req, res) => {
-  const { serviceName, passwordData } = req.body;
+// // 1. Guardar contraseñas en la tabla 'credentials'
+// app.post("/dashboard/add-credential", requireAuth, async (req, res) => {
+//   const { serviceName, passwordData } = req.body;
 
-  const { error } = await supabase
-    .from('credentials')
-    .insert([{ 
-      data: { service: serviceName, details: passwordData },
-      user_id: req.session.user.id // Si quieres vincularlo al usuario
-    }]);
+//   const { error } = await supabase
+//     .from('credentials')
+//     .insert([{ 
+//       data: { service: serviceName, details: passwordData },
+//       user_id: req.session.user.id // Si quieres vincularlo al usuario
+//     }]);
 
-  if (error) return res.status(400).send(error.message);
-  res.redirect("/dashboard");
-});
+//   if (error) return res.status(400).send(error.message);
+//   res.redirect("/dashboard");
+// });
 
-// 2. Subir archivos al bucket 'files'
-app.post("/dashboard/upload", requireAuth, upload.single('archivo'), async (req, res) => {
-  const file = req.file;
-  if (!file) return res.status(400).send('No se seleccionó ningún archivo.');
+// // 2. Subir archivos al bucket 'files'
+// app.post("/dashboard/upload", requireAuth, upload.single('archivo'), async (req, res) => {
+//   const file = req.file;
+//   if (!file) return res.status(400).send('No se seleccionó ningún archivo.');
 
-  // Subida al bucket 'files' que se ve en tu captura
-  const filePath = `uploads/${req.session.user.id}/${Date.now()}_${file.originalname}`;
+//   // Subida al bucket 'files' que se ve en tu captura
+//   const filePath = `uploads/${req.session.user.id}/${Date.now()}_${file.originalname}`;
   
-  const { data, error } = await supabase.storage
-    .from('files') 
-    .upload(filePath, file.buffer, {
-      contentType: file.mimetype
-    });
+//   const { data, error } = await supabase.storage
+//     .from('files') 
+//     .upload(filePath, file.buffer, {
+//       contentType: file.mimetype
+//     });
 
-  if (error) return res.status(400).send(error.message);
+//   if (error) return res.status(400).send(error.message);
   
-  // Opcional: Guardar el rastro de la subida en tu tabla
-  await supabase.from('credentials').insert([{ 
-    data: { type: "file_upload", path: data.path } 
-  }]);
+//   // Opcional: Guardar el rastro de la subida en tu tabla
+//   await supabase.from('credentials').insert([{ 
+//     data: { type: "file_upload", path: data.path } 
+//   }]);
 
-  res.redirect("/dashboard");
+//   res.redirect("/dashboard");
+// });
+app.post('/api/storage/upload', requireAuth, upload.single('file'), async (req, res) => {
+    try {
+        const file = req.file;
+        const bucket = req.body.bucket; // 'resumes' or 'cover-letters'
+
+        if (!file) return res.status(400).json({ error: "No file provided" });
+
+        // requireAuth already verified the user, so we just grab their ID
+        const user = req.user;
+
+        // 1. Upload to Storage with a unique timestamped name
+        const uniqueName = `${Date.now()}_${file.originalname}`;
+        const { data: storageData, error: storageError } = await supabase.storage
+            .from(bucket)
+            .upload(`${user.id}/${uniqueName}`, file.buffer, {
+                contentType: file.mimetype,
+                upsert: true
+            });
+
+        if (storageError) throw storageError;
+
+        console.log(`[FILE SAVED] Path: ${storageData.path}`);
+
+        // 2. Prepare the database entry
+        const entry = {
+            user_id: user.id,
+            resume_text: bucket === 'resumes' ? storageData.path : null,
+            cover_letter_text: bucket === 'cover-letters' ? storageData.path : null
+        };
+
+        // 3. Insert into the 'applications' table
+        const { data: dbData, error: dbError } = await supabase
+            .from('applications')
+            .insert([entry])
+            .select();
+
+        if (dbError) {
+            console.error("Database Error:", dbError.message);
+            return res.status(400).json({ error: "DB Error: " + dbError.message });
+        }
+
+        res.json({ 
+            message: "Success! File stored and DB row created.", 
+            path: storageData.path 
+        });
+
+    } catch (err) {
+        console.error("SERVER ERROR:", err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 import helmet from 'helmet';
