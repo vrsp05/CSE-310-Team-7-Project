@@ -19,23 +19,21 @@
 
     <div class="register-form">
         <h2>Register</h2>
-        <form id="register-form" action="/register" method="POST">
-            <label for="username">Username:</label>
+        <form id="register-form">
+            <label for="username">Display Name:</label>
             <input type="text" id="username" name="username" required>
             <br>
             <label for="email">Email:</label>
             <input type="email" maxlength="50" id="email" name="email" required>
             <script>
+                // Kept your team's custom email validation
                 const emailInput = document.getElementById("email");
                 
                 emailInput.addEventListener("blur", () => {
-                    if (!emailInput.validity.valid)
-                    {
+                    if (!emailInput.validity.valid) {
                         emailInput.setCustomValidity("Please enter a valid email address");   
-                    }
-                    else
-                    {
-                        emailInput.setCustomValidity(""); // Clears error when valid
+                    } else {
+                        emailInput.setCustomValidity("");
                     }
                     emailInput.reportValidity();
                 });
@@ -48,5 +46,34 @@
         </form>
     </div>
     <%- include('../partials/footer') %>
+
+    <script>
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault(); 
+            const email = document.getElementById('email').value;
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('/api/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, username, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert("Account created! You can now log in.");
+                    window.location.href = '/'; 
+                } else {
+                    alert("Signup failed: " + (data.error || "Check your details."));
+                }
+            } catch (err) {
+                console.error("Signup error:", err);
+                alert("An error occurred trying to reach the server.");
+            }
+        });
+    </script>
 </body>
 </html>
