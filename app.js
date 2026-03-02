@@ -216,6 +216,10 @@ app.get("/register", (req, res) => {
   res.render("auth/register", { error: req.query.error || null });
 });
 
+app.get("/about", (req, res) => {
+  res.render("about", { user: req.session.user || null });
+});
+
 app.get("/dashboard", requireAuth, async (req, res) => {
     // Aquí podrías traer datos de Supabase para mostrarlos
     const { data: dbItems } = await supabase.from('credentials').select('*');

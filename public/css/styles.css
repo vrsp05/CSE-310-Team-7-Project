@@ -242,7 +242,7 @@ a:hover {
 .jobcoach-page {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 40px 16px 70px;
+  padding: 72px 16px 70px; /* 72px top clears the 56px fixed header */
 }
 
 .jobcoach-hero {

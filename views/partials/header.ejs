@@ -12,10 +12,9 @@
             </ul>
         </nav>
 
-        <!-- Right side: user info + sign out -->
         <div class="header-actions">
             <% if (typeof user !== 'undefined' && user) { %>
-                <span class="header-username">👤 <%= user.username %></span>
+                <span class="header-username">Hello <%= user.username %>!</span>
                 <a href="/logout" class="header-signout">Sign Out</a>
             <% } else { %>
                 <a href="/" class="header-signout">Sign In</a>
