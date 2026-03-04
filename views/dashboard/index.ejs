@@ -128,101 +128,67 @@
 
   <%- include('../partials/footer') %>
 
-  <script>
-    // ─── Namespace from server ─────────────────────────────────────────
-    const username = document.querySelector('meta[name="jc-user"]')?.getAttribute('content') || 'guest';
-    const RESUME_KEY = `jc_resumes_${username}`;
-    const COVER_KEY  = `jc_covers_${username}`;
-
-    // ─── Load saved PDFs into pickers ─────────────────────────────────
-    function loadPicker(storageKey, pickerId, pickerAreaId) {
-      let items = [];
-      try { items = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch(e) {}
-      // Only show items that have a stored PDF
-      const pdfs = items.filter(i => i.dataUrl);
-      const pickerArea = document.getElementById(pickerAreaId);
-      const picker = document.getElementById(pickerId);
-      if (pdfs.length === 0) { pickerArea.style.display = 'none'; return; }
-      pickerArea.style.display = '';
-      // Clear & rebuild options
-      picker.innerHTML = '<option value="">— Upload a new file —</option>';
-      pdfs.forEach(item => {
-        const opt = document.createElement('option');
-        opt.value = item.id;
-        opt.textContent = item.title || 'Untitled';
-        picker.appendChild(opt);
-      });
-    }
-
-    loadPicker(RESUME_KEY, 'resumePicker', 'resumePickerArea');
-    loadPicker(COVER_KEY,  'coverPicker',  'coverPickerArea');
-
-    // ─── Auto-select from profile "Analyze" button ─────────────────────
-    const analyzeId   = sessionStorage.getItem('jc_analyze_id');
-    const analyzeType = sessionStorage.getItem('jc_analyze_type');
-    if (analyzeId) {
-      sessionStorage.removeItem('jc_analyze_id');
-      sessionStorage.removeItem('jc_analyze_type');
-      const pickerId = analyzeType === 'resume' ? 'resumePicker' : 'coverPicker';
-      const picker = document.getElementById(pickerId);
-      if (picker) {
-        picker.value = analyzeId;
-        picker.dispatchEvent(new Event('change'));
-        // Switch to the right tab
-        const tabTarget = analyzeType === 'resume' ? 'resume' : 'cover';
-        document.querySelectorAll('.tab').forEach(b => {
-          b.classList.toggle('tab-active', b.dataset.tab === tabTarget);
-        });
-        document.getElementById('tab-resume').classList.toggle('tab-content-active', tabTarget === 'resume');
-        document.getElementById('tab-cover').classList.toggle('tab-content-active',  tabTarget === 'cover');
-      }
-    }
-
-    // When a saved PDF is selected, hide the file input area; when "upload new" selected, show it
-    document.getElementById('resumePicker').addEventListener('change', function() {
-      const showUpload = !this.value;
-      document.getElementById('resumeUploadTitle').style.display = showUpload ? '' : 'none';
-      document.getElementById('btnChooseResume').style.display   = showUpload ? '' : 'none';
-      document.getElementById('resumeFilename').style.display    = showUpload ? '' : 'none';
-      document.getElementById('resumeFile').value = '';
-      if (!showUpload) document.getElementById('resumeFilename').textContent = 'No file selected';
-    });
-    document.getElementById('coverPicker').addEventListener('change', function() {
-      const showUpload = !this.value;
-      document.getElementById('coverUploadBox').querySelector('.upload-title').style.display = showUpload ? '' : 'none';
-      document.getElementById('btnChooseCover').style.display  = showUpload ? '' : 'none';
-      document.getElementById('coverFilename').style.display   = showUpload ? '' : 'none';
-      document.getElementById('coverFile').value = '';
-      if (!showUpload) document.getElementById('coverFilename').textContent = 'No file selected';
-    });
-
-    // ─── Helper: base64 dataUrl → File object ──────────────────────────
-    function dataUrlToFile(dataUrl, filename) {
-      const [header, b64] = dataUrl.split(',');
-      const mime = header.match(/:(.*?);/)[1];
-      const binary = atob(b64);
-      const arr = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
-      return new File([arr], filename, { type: mime });
-    }
-
-    // ─── Get the active resume File (from picker or file input) ────────
-    function getResumeFile() {
-      const pickerId = document.getElementById('resumePicker').value;
-      if (pickerId) {
-        let items = [];
-        try { items = JSON.parse(localStorage.getItem(RESUME_KEY) || '[]'); } catch(e) {}
-        const saved = items.find(i => i.id === pickerId);
-        if (saved?.dataUrl) return dataUrlToFile(saved.dataUrl, (saved.title || 'resume').replace(/[^a-z0-9]/gi,'_') + '.pdf');
-      }
-      return document.getElementById('resumeFile')?.files?.[0] || null;
-    }
-
-    // ─── Tabs logic ────────────────────────────────────────────────────
+ <script>
+    // ─── 1. DOM Elements ───────────────────────────────────────────────
+    const resumeFile = document.getElementById("resumeFile");
+    const coverFile  = document.getElementById("coverFile");
     const tabButtons = document.querySelectorAll(".tab");
     const resumeContent = document.getElementById("tab-resume");
     const coverContent = document.getElementById("tab-cover");
 
+    // ─── 2. "Choose File" Button Links ─────────────────────────────────
+    document.getElementById("btnChooseResume").addEventListener("click", () => resumeFile.click());
+    document.getElementById("btnChooseCover").addEventListener("click",  () => coverFile.click());
+
+    // ─── 3. NEW SUPABASE UPLOAD LOGIC ──────────────────────────────────
+    async function uploadToSupabase(fileInput, bucketName, filenameElementId) {
+        const file = fileInput.files[0];
+        const filenameDisplay = document.getElementById(filenameElementId);
+        
+        if (!file) {
+            filenameDisplay.textContent = "No file selected";
+            return;
+        }
+
+        filenameDisplay.textContent = `Uploading ${file.name}... ⏳`;
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('bucket', bucketName); 
+
+        try {
+            const response = await fetch('/api/storage/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                filenameDisplay.textContent = `✅ ${file.name} (Saved securely!)`;
+            } else {
+                filenameDisplay.textContent = `❌ Upload failed: ${data.error}`;
+                fileInput.value = ''; 
+            }
+        } catch (error) {
+            console.error("Upload Error:", error);
+            filenameDisplay.textContent = "❌ Server connection error";
+        }
+    }
+
+    // Connect Resume Input to Supabase
+    resumeFile.addEventListener("change", () => {
+        document.getElementById('resumePicker').value = '';
+        uploadToSupabase(resumeFile, 'resumes', 'resumeFilename');
+    });
+
+    // Connect Cover Letter Input to Supabase
+    coverFile.addEventListener("change", () => {
+        document.getElementById('coverPicker').value = '';
+        uploadToSupabase(coverFile, 'cover-letters', 'coverFilename');
+    });
+
+    // ─── 4. Tabs logic ─────────────────────────────────────────────────
     tabButtons.forEach(btn => {
       btn.addEventListener("click", () => {
         tabButtons.forEach(b => b.classList.remove("tab-active"));
@@ -233,24 +199,7 @@
       });
     });
 
-    // ─── "Choose File" buttons ─────────────────────────────────────────
-    const resumeFile = document.getElementById("resumeFile");
-    const coverFile  = document.getElementById("coverFile");
-
-    document.getElementById("btnChooseResume").addEventListener("click", () => resumeFile.click());
-    document.getElementById("btnChooseCover").addEventListener("click",  () => coverFile.click());
-
-    resumeFile.addEventListener("change", () => {
-      document.getElementById("resumeFilename").textContent = resumeFile.files?.[0]?.name || "No file selected";
-      // Clear picker selection when a new file is chosen
-      document.getElementById('resumePicker').value = '';
-    });
-    coverFile.addEventListener("change", () => {
-      document.getElementById("coverFilename").textContent = coverFile.files?.[0]?.name || "No file selected";
-      document.getElementById('coverPicker').value = '';
-    });
-
-    // ─── URL button ────────────────────────────────────────────────────
+    // ─── 5. URL button ─────────────────────────────────────────────────
     document.getElementById("btnJobUrl").addEventListener("click", () => {
       const url = prompt("Paste the job posting URL:");
       if (!url) return;
@@ -258,40 +207,9 @@
       textarea.value = `URL: ${url}\n\n` + textarea.value;
     });
 
-    // ─── Analyze button ────────────────────────────────────────────────
+    // ─── 6. Analyze button (Temporary Placeholder) ─────────────────────
     document.getElementById("btnAnalyze").addEventListener("click", async () => {
-      const resume = getResumeFile();
-      const jd = document.getElementById('jobDescription')?.value || '';
-      const geminiOutput = document.getElementById('geminiOutput');
-
-      if (!resume) {
-        geminiOutput.textContent = 'Please choose a resume file to upload (PDF or DOCX), or select one from your saved resumes.';
-        return;
-      }
-
-      geminiOutput.textContent = 'Uploading and sending to AI...';
-      document.getElementById('btnAnalyze').disabled = true;
-
-      try {
-        const fd = new FormData();
-        fd.append('resumeFile', resume);
-        fd.append('jobDescription', jd);
-
-        const resp = await fetch('/generate-file', { method: 'POST', credentials: 'same-origin', body: fd });
-        const data = await resp.json();
-        if (!resp.ok) {
-          geminiOutput.textContent = 'AI error: ' + (data?.error || JSON.stringify(data));
-          document.getElementById('btnAnalyze').disabled = false;
-          return;
-        }
-
-        geminiOutput.textContent = 'AI analysis complete — redirecting to Analysis page...';
-        setTimeout(() => { window.location.href = '/dashboard/analysis'; }, 600);
-      } catch (err) {
-        console.error('Network or server error', err);
-        geminiOutput.textContent = 'Network or server error. Check console.';
-        document.getElementById('btnAnalyze').disabled = false;
-      }
+      alert("AI Analysis connection is next! For now, your files are safely in Supabase.");
     });
 
   </script>
