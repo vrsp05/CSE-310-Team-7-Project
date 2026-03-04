@@ -102,13 +102,9 @@ app.use((req, res, next) => {
 // ----------------------
 // AUTH MIDDLEWARE
 // ----------------------
-// function requireAuth(req, res, next) {
-//   if (!req.session.user) {
-//     return res.redirect("/?error=Please login first");
-//   }
-//   next();
-// }
 async function requireAuth(req, res, next) {
+  // Tells the browser NEVER to cache protected pages
+    res.set('Cache-Control', 'no-cache, private, no-store, must-revalidate');
     let token = null;
 
     if (req.headers.cookie) {
@@ -130,45 +126,6 @@ async function requireAuth(req, res, next) {
 // ----------------------
 // NUEVAS RUTAS DE SUPABASE
 // ----------------------
-
-// // 1. Guardar contraseñas en la tabla 'credentials'
-// app.post("/dashboard/add-credential", requireAuth, async (req, res) => {
-//   const { serviceName, passwordData } = req.body;
-
-//   const { error } = await supabase
-//     .from('credentials')
-//     .insert([{ 
-//       data: { service: serviceName, details: passwordData },
-//       user_id: req.session.user.id // Si quieres vincularlo al usuario
-//     }]);
-
-//   if (error) return res.status(400).send(error.message);
-//   res.redirect("/dashboard");
-// });
-
-// // 2. Subir archivos al bucket 'files'
-// app.post("/dashboard/upload", requireAuth, upload.single('archivo'), async (req, res) => {
-//   const file = req.file;
-//   if (!file) return res.status(400).send('No se seleccionó ningún archivo.');
-
-//   // Subida al bucket 'files' que se ve en tu captura
-//   const filePath = `uploads/${req.session.user.id}/${Date.now()}_${file.originalname}`;
-  
-//   const { data, error } = await supabase.storage
-//     .from('files') 
-//     .upload(filePath, file.buffer, {
-//       contentType: file.mimetype
-//     });
-
-//   if (error) return res.status(400).send(error.message);
-  
-//   // Opcional: Guardar el rastro de la subida en tu tabla
-//   await supabase.from('credentials').insert([{ 
-//     data: { type: "file_upload", path: data.path } 
-//   }]);
-
-//   res.redirect("/dashboard");
-// });
 app.post('/api/storage/upload', requireAuth, upload.single('file'), async (req, res) => {
     try {
         const file = req.file;
