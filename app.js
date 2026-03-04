@@ -77,7 +77,25 @@ app.use(
 );
 
 app.use((req, res, next) => {
-  res.locals.user = req.session.user || null;
+  // Try to read user from cookie token (JWT decode — no network call)
+  let user = null;
+  if (req.headers.cookie) {
+    const cookies = req.headers.cookie.split(';').map(c => c.trim());
+    const tokenCookie = cookies.find(c => c.startsWith('supabaseToken='));
+    if (tokenCookie) {
+      try {
+        const token = tokenCookie.split('=')[1];
+        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString('utf8'));
+        user = {
+          id: payload.sub,
+          email: payload.email,
+          username: payload.user_metadata?.display_name || payload.email,
+          user_metadata: payload.user_metadata || {}
+        };
+      } catch (_) {}
+    }
+  }
+  res.locals.user = user;
   next();
 });
 
@@ -104,8 +122,8 @@ async function requireAuth(req, res, next) {
     const { data: { user }, error } = await supabase.auth.getUser(token);
     if (error || !user) return res.redirect('/?error=Session+expired');
 
-    res.locals.user = user; 
-    req.user = user;
+    res.locals.user = { ...user, username: user.user_metadata?.display_name || user.email };
+    req.user = res.locals.user;
     next();
 }
 
@@ -279,26 +297,31 @@ app.use(helmet({
 // ROUTES EXISTENTES (Se mantienen igual)
 // ----------------------
 
+// Debug: check what user the server sees
+app.get("/debug/me", (req, res) => {
+  res.json({ user: res.locals.user, cookies: req.headers.cookie || 'none' });
+});
+
 app.get("/", (req, res) => {
   res.render("index", { error: req.query.error || null });
 });
+
 
 app.get("/register", (req, res) => {
   res.render("auth/register", { error: req.query.error || null });
 });
 
 app.get("/about", (req, res) => {
-  res.render("about", { user: req.session.user || null });
+  res.render("about", { user: res.locals.user || null });
 });
 
 app.get("/dashboard", requireAuth, async (req, res) => {
-    // Aquí podrías traer datos de Supabase para mostrarlos
     const { data: dbItems } = await supabase.from('credentials').select('*');
-    res.render("dashboard/index", { user: req.session.user, dbItems: dbItems || [] });
+    res.render("dashboard/index", { user: req.user, dbItems: dbItems || [] });
 });
 
 app.get("/dashboard/profile", requireAuth, (req, res) => {
-    res.render("dashboard/profile", { user: req.session.user });
+    res.render("dashboard/profile", { user: req.user });
 });
 
 // Server-side proxy to call Gemini (uses GEMINI_API_KEY from .env)
@@ -604,7 +627,7 @@ app.get('/dashboard/analysis', requireAuth, (req, res) => {
   const ai = req.session.last_ai_result || null;
   // clear it after reading so it doesn't persist
   delete req.session.last_ai_result;
-  res.render('dashboard/analysis', { user: req.session.user, aiResult: ai });
+  res.render('dashboard/analysis', { user: req.user, aiResult: ai });
 });
 
 
