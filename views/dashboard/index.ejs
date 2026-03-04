@@ -17,7 +17,7 @@
     <header class="jobcoach-hero">
       <br>
       <h1 class="jobcoach-title">AI JobCoach</h1>
-      <p class="jobcoach-subtitle">AI-powered career coaching for your next opportunity</p>
+      <p class="jobcoach-subtitle">Submit your Resume or Cover Letter Here...</p>
     </header>
 
     <!-- Main framed container -->
@@ -260,12 +260,34 @@
 
     // ─── Analyze button ────────────────────────────────────────────────
     document.getElementById("btnAnalyze").addEventListener("click", async () => {
-      const resume = getResumeFile();
-      const jd = document.getElementById('jobDescription')?.value || '';
+      const activeTab    = document.querySelector(".tab.tab-active")?.dataset?.tab;
+      const isCover      = activeTab === "cover";
       const geminiOutput = document.getElementById('geminiOutput');
 
-      if (!resume) {
-        geminiOutput.textContent = 'Please choose a resume file to upload (PDF or DOCX), or select one from your saved resumes.';
+      let fileToSend = null;
+      let fieldName  = 'resumeFile';
+
+      if (isCover) {
+        fieldName = 'coverFile';
+        // check picker first
+        const pickerId = document.getElementById('coverPicker').value;
+        if (pickerId) {
+          let items = [];
+          try { items = JSON.parse(localStorage.getItem(COVER_KEY) || '[]'); } catch(e) {}
+          const saved = items.find(i => i.id === pickerId);
+          if (saved?.dataUrl) fileToSend = dataUrlToFile(saved.dataUrl, (saved.title || 'cover').replace(/[^a-z0-9]/gi,'_') + '.pdf');
+        }
+        if (!fileToSend) fileToSend = document.getElementById('coverFile')?.files?.[0] || null;
+      } else {
+        fileToSend = getResumeFile();
+      }
+
+      const jd = document.getElementById('jobDescription')?.value || '';
+
+      if (!fileToSend) {
+        geminiOutput.textContent = isCover
+          ? 'Please choose a cover letter file (PDF or DOCX), or select one from your saved cover letters.'
+          : 'Please choose a resume file (PDF or DOCX), or select one from your saved resumes.';
         return;
       }
 
@@ -274,7 +296,7 @@
 
       try {
         const fd = new FormData();
-        fd.append('resumeFile', resume);
+        fd.append(fieldName, fileToSend);
         fd.append('jobDescription', jd);
 
         const resp = await fetch('/generate-file', { method: 'POST', credentials: 'same-origin', body: fd });

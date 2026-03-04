@@ -38,9 +38,9 @@
           <!-- Suggestions list rendered as HTML -->
           <div id="aiSuggestionsBox"></div>
 
-          <!-- Editable improved resume -->
+          <!-- Editable improved resume / cover letter -->
           <div style="margin-top:20px;">
-            <div class="suggested-subtitle" style="font-weight:700; margin-bottom:6px;">SUGGESTED RESUME (EDITABLE)</div>
+            <div class="suggested-subtitle" style="font-weight:700; margin-bottom:6px;" id="suggestedLabel">SUGGESTED RESUME (EDITABLE)</div>
             <textarea id="suggestedText" style="width:100%; height:320px; font-family:monospace; font-size:13px; padding:10px; border:1px solid #ddd; border-radius:6px;"></textarea>
             <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
               <button class="btn btn-primary" type="button" id="btnDownloadWithChanges">⬇ DOWNLOAD AS DOCX</button>
@@ -154,7 +154,12 @@
     } catch(e) { console.error('aiJson parse error', e); }
 
     if (aiData) {
-      const result = (aiData.result || '').toString();
+      const result   = (aiData.result || '').toString();
+      const isCover  = aiData.mode === 'cover';
+
+      // ── Update label based on mode ───────────────────────────────────
+      const suggestedLabel = document.getElementById('suggestedLabel');
+      if (suggestedLabel) suggestedLabel.textContent = isCover ? 'SUGGESTED COVER LETTER (EDITABLE)' : 'SUGGESTED RESUME (EDITABLE)';
 
       // ── 1. Summary ──────────────────────────────────────────────────────
       const summaryEl = document.getElementById('aiSummaryBox');
@@ -228,37 +233,34 @@
 
       // ── 9. Save to Profile ───────────────────────────────────────────────
       document.getElementById('btnSaveToProfile')?.addEventListener('click', () => {
-        const content = suggestedTextEl?.value || '';
-        // Prompt for a title
-        const title = prompt('Name for this resume in your profile:', 'Analyzed Resume — ' + new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
-        if (title === null) return; // user cancelled
+        const content  = suggestedTextEl?.value || '';
+        const typeLabel = isCover ? 'Cover Letter' : 'Resume';
+        const title = prompt(`Name for this ${typeLabel} in your profile:`, `Analyzed ${typeLabel} — ` + new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
+        if (title === null) return;
 
-        // Get username from page (injected via aiJson's sibling, or fallback)
         let username = 'guest';
         try {
-          // header.ejs renders user server-side; read it from a meta tag we'll inject
           const metaUser = document.querySelector('meta[name="jc-user"]');
           if (metaUser) username = metaUser.getAttribute('content') || 'guest';
         } catch(e) {}
 
-        const RESUME_KEY = `jc_resumes_${username}`;
+        const STORAGE_KEY = isCover ? `jc_covers_${username}` : `jc_resumes_${username}`;
         let items = [];
-        try { items = JSON.parse(localStorage.getItem(RESUME_KEY) || '[]'); } catch(e) {}
+        try { items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) {}
 
         const newItem = {
           id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-          title: title.trim() || 'Untitled Resume',
+          title: title.trim() || `Untitled ${typeLabel}`,
           notes: '',
           content,
           score,
           createdAt: new Date().toISOString()
         };
         items.unshift(newItem);
-        localStorage.setItem(RESUME_KEY, JSON.stringify(items));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
 
-        // Show a quick toast-style confirmation
         const toast = document.createElement('div');
-        toast.textContent = '✅ Saved to Profile!';
+        toast.textContent = `✅ Saved to Profile!`;
         Object.assign(toast.style, {
           position:'fixed', bottom:'28px', left:'50%', transform:'translateX(-50%)',
           background:'#111', color:'#fff', padding:'10px 24px', borderRadius:'24px',

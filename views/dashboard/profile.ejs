@@ -213,12 +213,12 @@
             </div>
             <div class="profile-card-actions">
               ${item.dataUrl ? `
-                <button class="btn btn-outline btn-sm" onclick="previewDoc('${item.id}','resume')">👁 Preview</button>
+                <button class="btn btn-outline btn-sm" data-action="preview" data-id="${item.id}" data-type="resume">👁 Preview</button>
                 <a class="btn btn-outline btn-sm" href="${escHtml(item.dataUrl)}" download="${escHtml((item.title||'resume').replace(/[^a-z0-9]/gi,'_'))}.pdf">⬇ Download</a>
-                <button class="btn btn-outline btn-sm" onclick="useForAnalysis('${item.id}','resume')">🔬 Analyze</button>
+                <button class="btn btn-outline btn-sm" data-action="analyze" data-id="${item.id}" data-type="resume">🔬 Analyze</button>
               ` : ''}
-              <button class="btn btn-outline btn-sm" onclick="editItem('${item.id}','resume')">✏ Edit</button>
-              <button class="btn btn-outline btn-sm btn-danger" onclick="deleteItem('${item.id}','resume')">Delete</button>
+              <button class="btn btn-outline btn-sm" data-action="edit" data-id="${item.id}" data-type="resume">✏ Edit</button>
+              <button class="btn btn-outline btn-sm btn-danger" data-action="delete" data-id="${item.id}" data-type="resume">Delete</button>
             </div>
           </div>
           ${item.notes ? `<p class="profile-card-notes">${escHtml(item.notes)}</p>` : ''}
@@ -251,16 +251,35 @@
             </div>
             <div class="profile-card-actions">
               ${item.dataUrl ? `
-                <button class="btn btn-outline btn-sm" onclick="previewDoc('${item.id}','cover')">👁 Preview</button>
+                <button class="btn btn-outline btn-sm" data-action="preview" data-id="${item.id}" data-type="cover">👁 Preview</button>
                 <a class="btn btn-outline btn-sm" href="${escHtml(item.dataUrl)}" download="${escHtml((item.title||'cover').replace(/[^a-z0-9]/gi,'_'))}.pdf">⬇ Download</a>
               ` : ''}
-              <button class="btn btn-outline btn-sm" onclick="editItem('${item.id}','cover')">✏ Edit</button>
-              <button class="btn btn-outline btn-sm btn-danger" onclick="deleteItem('${item.id}','cover')">Delete</button>
+              <button class="btn btn-outline btn-sm" data-action="edit" data-id="${item.id}" data-type="cover">✏ Edit</button>
+              <button class="btn btn-outline btn-sm btn-danger" data-action="delete" data-id="${item.id}" data-type="cover">Delete</button>
             </div>
           </div>
           ${item.notes ? `<p class="profile-card-notes">${escHtml(item.notes)}</p>` : ''}
         </div>`).join('');
     }
+
+    // ─── Event delegation for card buttons ────────────────────────────
+    document.getElementById('resumeList').addEventListener('click', e => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const { action, id, type } = btn.dataset;
+      if (action === 'delete')       deleteItem(id, type);
+      else if (action === 'edit')    editItem(id, type);
+      else if (action === 'preview') previewDoc(id, type);
+      else if (action === 'analyze') useForAnalysis(id, type);
+    });
+    document.getElementById('coverList').addEventListener('click', e => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const { action, id, type } = btn.dataset;
+      if (action === 'delete')       deleteItem(id, type);
+      else if (action === 'edit')    editItem(id, type);
+      else if (action === 'preview') previewDoc(id, type);
+    });
 
     // ─── Add Resume ────────────────────────────────────────────────────
     document.getElementById('btnAddResume').addEventListener('click', () => {
@@ -432,403 +451,6 @@
       sessionStorage.setItem('jc_analyze_type', type);
       window.location.href = '/dashboard';
     };
-
-    // ─── Initial render ────────────────────────────────────────────────
-    renderResumes();
-    renderCovers();
-  })();
-  </script>
-</body>
-</html>
-
-
-    <!-- ─── TAB BAR ─────────────────────────────────────────────────── -->
-    <div class="profile-tabs">
-      <button class="profile-tab profile-tab-active" data-tab="resumes">
-        📄 Resumes
-        <span class="profile-tab-count" id="resumeCount">0</span>
-      </button>
-      <button class="profile-tab" data-tab="covers">
-        📝 Cover Letters
-        <span class="profile-tab-count" id="coverCount">0</span>
-      </button>
-    </div>
-
-    <!-- ─── RESUMES SECTION ──────────────────────────────────────────── -->
-    <section class="profile-section" id="section-resumes">
-      <div class="profile-section-header">
-        <h2 class="profile-section-title">Saved Resumes</h2>
-        <button class="btn btn-primary" id="btnAddResume">+ Add Resume</button>
-      </div>
-
-      <!-- Upload / Add form (hidden by default) -->
-      <div class="profile-add-form" id="resumeForm" style="display:none;">
-        <div class="profile-form-inner">
-          <h3 class="profile-form-title">Add Resume</h3>
-          <label class="profile-label">Title / Company
-            <input type="text" id="resumeTitle" class="profile-input" placeholder='e.g. "Google — Software Engineer"' />
-          </label>
-          <label class="profile-label">Notes / Job Description Snippet
-            <textarea id="resumeNotes" class="profile-textarea" rows="3" placeholder="Add any notes about this resume or the job it was made for..."></textarea>
-          </label>
-          <label class="profile-label">Resume content (paste text or will be filled automatically after an analysis)
-            <textarea id="resumeContent" class="profile-textarea" rows="8" placeholder="Paste your resume text here, or leave blank and it will be saved from the latest analysis..."></textarea>
-          </label>
-          <div class="profile-form-actions">
-            <button class="btn btn-primary" id="btnSaveResume">Save Resume</button>
-            <button class="btn btn-outline" id="btnCancelResume">Cancel</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- List of saved resumes -->
-      <div class="profile-list" id="resumeList">
-        <!-- filled by JS -->
-      </div>
-    </section>
-
-    <!-- ─── COVER LETTERS SECTION ────────────────────────────────────── -->
-    <section class="profile-section" id="section-covers" style="display:none;">
-      <div class="profile-section-header">
-        <h2 class="profile-section-title">Saved Cover Letters</h2>
-        <button class="btn btn-primary" id="btnAddCover">+ Add Cover Letter</button>
-      </div>
-
-      <!-- Upload / Add form (hidden by default) -->
-      <div class="profile-add-form" id="coverForm" style="display:none;">
-        <div class="profile-form-inner">
-          <h3 class="profile-form-title">Add Cover Letter</h3>
-          <label class="profile-label">Title / Company
-            <input type="text" id="coverTitle" class="profile-input" placeholder='e.g. "Google — Cover Letter"' />
-          </label>
-          <label class="profile-label">Notes
-            <textarea id="coverNotes" class="profile-textarea" rows="3" placeholder="Add any notes about this cover letter..."></textarea>
-          </label>
-          <label class="profile-label">Cover Letter content
-            <textarea id="coverContent" class="profile-textarea" rows="10" placeholder="Paste your cover letter text here..."></textarea>
-          </label>
-          <div class="profile-form-actions">
-            <button class="btn btn-primary" id="btnSaveCover">Save Cover Letter</button>
-            <button class="btn btn-outline" id="btnCancelCover">Cancel</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- List of saved cover letters -->
-      <div class="profile-list" id="coverList">
-        <!-- filled by JS -->
-      </div>
-    </section>
-
-  </main>
-
-  <%- include('../partials/footer') %>
-
-</body>
-</html>
-
-    const COVER_KEY  = `jc_covers_${username}`;
-
-    // ─── Tab switching ─────────────────────────────────────────────────
-    const tabBtns = document.querySelectorAll('.profile-tab');
-    const sectionResumes = document.getElementById('section-resumes');
-    const sectionCovers  = document.getElementById('section-covers');
-    tabBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        tabBtns.forEach(b => b.classList.remove('profile-tab-active'));
-        btn.classList.add('profile-tab-active');
-        const t = btn.dataset.tab;
-        sectionResumes.style.display = t === 'resumes' ? '' : 'none';
-        sectionCovers.style.display  = t === 'covers'  ? '' : 'none';
-      });
-    });
-
-    // ─── Storage helpers ───────────────────────────────────────────────
-    function loadItems(key) {
-      try { return JSON.parse(localStorage.getItem(key) || '[]'); }
-      catch(e) { return []; }
-    }
-    function saveItems(key, items) {
-      localStorage.setItem(key, JSON.stringify(items));
-    }
-    function newId() {
-      return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    }
-    function formatDate(iso) {
-      return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    }
-
-    // ─── Render resume cards ───────────────────────────────────────────
-    function renderResumes() {
-      const items = loadItems(RESUME_KEY);
-      document.getElementById('resumeCount').textContent = items.length;
-      const list = document.getElementById('resumeList');
-
-      if (items.length === 0) {
-        list.innerHTML = `
-          <div class="profile-empty">
-            <div class="profile-empty-icon">📄</div>
-            <p>No resumes saved yet. Click <strong>+ Add Resume</strong> to get started.</p>
-            <p class="profile-empty-sub">Resumes are also auto-saved after each analysis on the <a href="/dashboard/analysis">Analysis Dashboard</a>.</p>
-          </div>`;
-        return;
-      }
-
-      list.innerHTML = items.map((item, i) => `
-        <div class="profile-card" data-id="${item.id}">
-          <div class="profile-card-header">
-            <div>
-              <span class="profile-card-title">${escHtml(item.title || 'Untitled Resume')}</span>
-              <span class="profile-card-meta">${formatDate(item.createdAt)} ${item.score ? `· Score: <strong style="color:${scoreColor(item.score)}">${item.score}%</strong>` : ''}</span>
-            </div>
-            <div class="profile-card-actions">
-              <button class="btn btn-outline btn-sm" onclick="openResume('${item.id}')">View / Edit</button>
-              <button class="btn btn-outline btn-sm btn-danger" onclick="deleteResume('${item.id}')">Delete</button>
-            </div>
-          </div>
-          ${item.notes ? `<p class="profile-card-notes">${escHtml(item.notes)}</p>` : ''}
-          <div class="profile-card-preview">${escHtml((item.content || '').slice(0, 200))}${(item.content || '').length > 200 ? '…' : ''}</div>
-        </div>`).join('');
-    }
-
-    // ─── Render cover letter cards ─────────────────────────────────────
-    function renderCovers() {
-      const items = loadItems(COVER_KEY);
-      document.getElementById('coverCount').textContent = items.length;
-      const list = document.getElementById('coverList');
-
-      if (items.length === 0) {
-        list.innerHTML = `
-          <div class="profile-empty">
-            <div class="profile-empty-icon">📝</div>
-            <p>No cover letters saved yet. Click <strong>+ Add Cover Letter</strong> to get started.</p>
-          </div>`;
-        return;
-      }
-
-      list.innerHTML = items.map(item => `
-        <div class="profile-card" data-id="${item.id}">
-          <div class="profile-card-header">
-            <div>
-              <span class="profile-card-title">${escHtml(item.title || 'Untitled Cover Letter')}</span>
-              <span class="profile-card-meta">${formatDate(item.createdAt)}</span>
-            </div>
-            <div class="profile-card-actions">
-              <button class="btn btn-outline btn-sm" onclick="openCover('${item.id}')">View / Edit</button>
-              <button class="btn btn-outline btn-sm btn-danger" onclick="deleteCover('${item.id}')">Delete</button>
-            </div>
-          </div>
-          ${item.notes ? `<p class="profile-card-notes">${escHtml(item.notes)}</p>` : ''}
-          <div class="profile-card-preview">${escHtml((item.content || '').slice(0, 200))}${(item.content || '').length > 200 ? '…' : ''}</div>
-        </div>`).join('');
-    }
-
-    // ─── Add Resume ────────────────────────────────────────────────────
-    document.getElementById('btnAddResume').addEventListener('click', () => {
-      document.getElementById('resumeTitle').value = '';
-      document.getElementById('resumeNotes').value = '';
-      document.getElementById('resumeContent').value = '';
-      document.getElementById('resumeForm').style.display = '';
-      document.getElementById('resumeTitle').focus();
-    });
-    document.getElementById('btnCancelResume').addEventListener('click', () => {
-      document.getElementById('resumeForm').style.display = 'none';
-    });
-    document.getElementById('btnSaveResume').addEventListener('click', () => {
-      const title   = document.getElementById('resumeTitle').value.trim();
-      const notes   = document.getElementById('resumeNotes').value.trim();
-      const content = document.getElementById('resumeContent').value.trim();
-      if (!title) { document.getElementById('resumeTitle').focus(); return; }
-
-      const items = loadItems(RESUME_KEY);
-      items.unshift({ id: newId(), title, notes, content, score: null, createdAt: new Date().toISOString() });
-      saveItems(RESUME_KEY, items);
-      document.getElementById('resumeForm').style.display = 'none';
-      renderResumes();
-      showToast('Resume saved!');
-    });
-
-    // ─── Add Cover Letter ──────────────────────────────────────────────
-    document.getElementById('btnAddCover').addEventListener('click', () => {
-      document.getElementById('coverTitle').value = '';
-      document.getElementById('coverNotes').value = '';
-      document.getElementById('coverContent').value = '';
-      document.getElementById('coverForm').style.display = '';
-      document.getElementById('coverTitle').focus();
-    });
-    document.getElementById('btnCancelCover').addEventListener('click', () => {
-      document.getElementById('coverForm').style.display = 'none';
-    });
-    document.getElementById('btnSaveCover').addEventListener('click', () => {
-      const title   = document.getElementById('coverTitle').value.trim();
-      const notes   = document.getElementById('coverNotes').value.trim();
-      const content = document.getElementById('coverContent').value.trim();
-      if (!title) { document.getElementById('coverTitle').focus(); return; }
-
-      const items = loadItems(COVER_KEY);
-      items.unshift({ id: newId(), title, notes, content, createdAt: new Date().toISOString() });
-      saveItems(COVER_KEY, items);
-      document.getElementById('coverForm').style.display = 'none';
-      renderCovers();
-      showToast('Cover letter saved!');
-    });
-
-    // ─── View / Edit Resume (modal) ────────────────────────────────────
-    window.openResume = (id) => {
-      const items = loadItems(RESUME_KEY);
-      const item  = items.find(r => r.id === id);
-      if (!item) return;
-      openModal({
-        title: item.title || 'Resume',
-        content: item.content || '',
-        score: item.score,
-        onSave: (newTitle, newContent, newNotes) => {
-          item.title   = newTitle;
-          item.content = newContent;
-          item.notes   = newNotes;
-          saveItems(RESUME_KEY, items);
-          renderResumes();
-          showToast('Resume updated!');
-        }
-      }, item);
-    };
-
-    window.deleteResume = (id) => {
-      if (!confirm('Delete this resume?')) return;
-      const items = loadItems(RESUME_KEY).filter(r => r.id !== id);
-      saveItems(RESUME_KEY, items);
-      renderResumes();
-      showToast('Deleted.');
-    };
-
-    window.openCover = (id) => {
-      const items = loadItems(COVER_KEY);
-      const item  = items.find(r => r.id === id);
-      if (!item) return;
-      openModal({
-        title: item.title || 'Cover Letter',
-        content: item.content || '',
-        onSave: (newTitle, newContent, newNotes) => {
-          item.title   = newTitle;
-          item.content = newContent;
-          item.notes   = newNotes;
-          saveItems(COVER_KEY, items);
-          renderCovers();
-          showToast('Cover letter updated!');
-        }
-      }, item);
-    };
-
-    window.deleteCover = (id) => {
-      if (!confirm('Delete this cover letter?')) return;
-      const items = loadItems(COVER_KEY).filter(r => r.id !== id);
-      saveItems(COVER_KEY, items);
-      renderCovers();
-      showToast('Deleted.');
-    };
-
-    // ─── Modal ─────────────────────────────────────────────────────────
-    function openModal({ title, content, score, onSave }, item) {
-      const overlay = document.createElement('div');
-      overlay.className = 'profile-modal-overlay';
-      overlay.innerHTML = `
-        <div class="profile-modal" role="dialog" aria-modal="true">
-          <div class="profile-modal-header">
-            <input class="profile-modal-title-input profile-input" value="${escHtml(item.title || '')}" placeholder="Title" />
-            <button class="profile-modal-close" aria-label="Close">✕</button>
-          </div>
-          <div class="profile-modal-meta">
-            ${score ? `<span>Score: <strong style="color:${scoreColor(score)}">${score}%</strong></span> · ` : ''}
-            <span>${formatDate(item.createdAt)}</span>
-          </div>
-          <label class="profile-label" style="margin-top:10px;">Notes
-            <textarea class="profile-textarea" id="modalNotes" rows="2">${escHtml(item.notes || '')}</textarea>
-          </label>
-          <label class="profile-label" style="margin-top:10px;">Content
-            <textarea class="profile-modal-textarea profile-textarea" id="modalContent" rows="16">${escHtml(item.content || '')}</textarea>
-          </label>
-          <div class="profile-modal-footer">
-            <button class="btn btn-primary" id="modalSaveBtn">Save Changes</button>
-            <button class="btn btn-outline" id="modalDownloadBtn">⬇ Download DOCX</button>
-            <button class="btn btn-outline" id="modalCopyBtn">📋 Copy</button>
-          </div>
-        </div>`;
-
-      document.body.appendChild(overlay);
-      document.body.style.overflow = 'hidden';
-
-      const close = () => { overlay.remove(); document.body.style.overflow = ''; };
-      overlay.querySelector('.profile-modal-close').addEventListener('click', close);
-      overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
-
-      overlay.querySelector('#modalSaveBtn').addEventListener('click', () => {
-        const newTitle   = overlay.querySelector('.profile-modal-title-input').value.trim();
-        const newContent = overlay.querySelector('#modalContent').value;
-        const newNotes   = overlay.querySelector('#modalNotes').value.trim();
-        if (!newTitle) return;
-        onSave(newTitle, newContent, newNotes);
-        close();
-      });
-
-      overlay.querySelector('#modalCopyBtn').addEventListener('click', () => {
-        const txt = overlay.querySelector('#modalContent').value;
-        navigator.clipboard.writeText(txt).then(() => showToast('Copied to clipboard!'));
-      });
-
-      overlay.querySelector('#modalDownloadBtn').addEventListener('click', async () => {
-        const txt = overlay.querySelector('#modalContent').value;
-        const titleVal = overlay.querySelector('.profile-modal-title-input').value.trim() || 'document';
-        try {
-          const resp = await fetch('/download/corrected-docx', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ editedText: txt, filename: titleVal })
-          });
-          if (!resp.ok) { alert('Download failed'); return; }
-          const blob = new Blob([await resp.arrayBuffer()], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-          const url  = URL.createObjectURL(blob);
-          const a    = document.createElement('a');
-          a.href = url; a.download = titleVal.replace(/[^a-z0-9]/gi, '_') + '.docx';
-          document.body.appendChild(a); a.click(); a.remove();
-          setTimeout(() => URL.revokeObjectURL(url), 3000);
-        } catch(e) { alert('Download error'); }
-      });
-    }
-
-    // ─── Toast ─────────────────────────────────────────────────────────
-    function showToast(msg) {
-      const t = document.createElement('div');
-      t.className = 'profile-toast';
-      t.textContent = msg;
-      document.body.appendChild(t);
-      requestAnimationFrame(() => t.classList.add('profile-toast-show'));
-      setTimeout(() => { t.classList.remove('profile-toast-show'); setTimeout(() => t.remove(), 350); }, 2500);
-    }
-
-    // ─── Helpers ───────────────────────────────────────────────────────
-    function escHtml(str) {
-      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
-    function scoreColor(s) {
-      const n = parseInt(s, 10);
-      if (n >= 80) return '#16a34a';
-      if (n >= 60) return '#d97706';
-      return '#dc2626';
-    }
-
-    // ─── Auto-save from last analysis (if present in sessionStorage) ───
-    // analysis.ejs will store the last AI result in sessionStorage for pickup here
-    const pending = sessionStorage.getItem('jc_pending_resume');
-    if (pending) {
-      sessionStorage.removeItem('jc_pending_resume');
-      try {
-        const p = JSON.parse(pending);
-        const items = loadItems(RESUME_KEY);
-        items.unshift(p);
-        saveItems(RESUME_KEY, items);
-        showToast('Resume from last analysis saved to profile!');
-      } catch(e) {}
-    }
 
     // ─── Initial render ────────────────────────────────────────────────
     renderResumes();
