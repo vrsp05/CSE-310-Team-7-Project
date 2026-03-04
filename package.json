@@ -5,7 +5,7 @@
   "description": "Web application to scan a job description and resume to assess tailoring and interview prep.",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "start": "node app.js"
   },
   "repository": {
@@ -35,5 +35,10 @@
     "multer": "^2.0.2",
     "pdf-parse": "^2.4.5",
     "pg": "^8.18.0"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0",
+    "jest": "^30.2.0",
+    "supertest": "^7.2.2"
   }
 }

@@ -618,9 +618,17 @@ app.get('/logout', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`✅ Server running at http://localhost:${PORT}`);
-});
+
+// Jest automatically sets NODE_ENV to 'test'. 
+// This tells the server NOT to lock the port when testing.
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`✅ Server running at http://localhost:${PORT}`);
+  });
+}
+
+// Export the app so Supertest can use it
+export default app;
 
 // POST /download/corrected-docx - create a .docx from provided editedText and stream it
 app.post('/download/corrected-docx', requireAuth, async (req, res) => {
