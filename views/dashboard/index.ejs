@@ -17,7 +17,7 @@
     <header class="jobcoach-hero">
       <br>
       <h1 class="jobcoach-title">AI JobCoach</h1>
-      <p class="jobcoach-subtitle">AI-powered career coaching for your next opportunity</p>
+      <p class="jobcoach-subtitle">Submit your Resume or Cover Letter Here...</p>
     </header>
 
     <!-- Main framed container -->
@@ -209,7 +209,60 @@
 
     // ─── 6. Analyze button (Temporary Placeholder) ─────────────────────
     document.getElementById("btnAnalyze").addEventListener("click", async () => {
-      alert("AI Analysis connection is next! For now, your files are safely in Supabase.");
+      const activeTab    = document.querySelector(".tab.tab-active")?.dataset?.tab;
+      const isCover      = activeTab === "cover";
+      const geminiOutput = document.getElementById('geminiOutput');
+
+      let fileToSend = null;
+      let fieldName  = 'resumeFile';
+
+      if (isCover) {
+        fieldName = 'coverFile';
+        // check picker first
+        const pickerId = document.getElementById('coverPicker').value;
+        if (pickerId) {
+          let items = [];
+          try { items = JSON.parse(localStorage.getItem(COVER_KEY) || '[]'); } catch(e) {}
+          const saved = items.find(i => i.id === pickerId);
+          if (saved?.dataUrl) fileToSend = dataUrlToFile(saved.dataUrl, (saved.title || 'cover').replace(/[^a-z0-9]/gi,'_') + '.pdf');
+        }
+        if (!fileToSend) fileToSend = document.getElementById('coverFile')?.files?.[0] || null;
+      } else {
+        fileToSend = getResumeFile();
+      }
+
+      const jd = document.getElementById('jobDescription')?.value || '';
+
+      if (!fileToSend) {
+        geminiOutput.textContent = isCover
+          ? 'Please choose a cover letter file (PDF or DOCX), or select one from your saved cover letters.'
+          : 'Please choose a resume file (PDF or DOCX), or select one from your saved resumes.';
+        return;
+      }
+
+      geminiOutput.textContent = 'Uploading and sending to AI...';
+      document.getElementById('btnAnalyze').disabled = true;
+
+      try {
+        const fd = new FormData();
+        fd.append(fieldName, fileToSend);
+        fd.append('jobDescription', jd);
+
+        const resp = await fetch('/generate-file', { method: 'POST', credentials: 'same-origin', body: fd });
+        const data = await resp.json();
+        if (!resp.ok) {
+          geminiOutput.textContent = 'AI error: ' + (data?.error || JSON.stringify(data));
+          document.getElementById('btnAnalyze').disabled = false;
+          return;
+        }
+
+        geminiOutput.textContent = 'AI analysis complete — redirecting to Analysis page...';
+        setTimeout(() => { window.location.href = '/dashboard/analysis'; }, 600);
+      } catch (err) {
+        console.error('Network or server error', err);
+        geminiOutput.textContent = 'Network or server error. Check console.';
+        document.getElementById('btnAnalyze').disabled = false;
+      }
     });
 
   </script>
