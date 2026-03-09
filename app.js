@@ -133,6 +133,26 @@ app.post('/api/storage/upload', requireAuth, upload.single('file'), async (req, 
         const bucket = req.body.bucket; // 'resumes' or 'cover-letters'
 
         if (!file) return res.status(400).json({ error: "No file provided" });
+        
+        // --- NEW SECURITY VALIDATION ---
+        
+        // 1. Block invalid buckets (Hacker Test G)
+        const allowedBuckets = ['resumes', 'cover-letters'];
+        if (!allowedBuckets.includes(bucket)) {
+            return res.status(400).json({ error: "Invalid storage bucket." });
+        }
+
+        // 2. Block invalid file types (Hacker Test F)
+        const allowedMimeTypes = [
+            'application/pdf', 
+            'application/msword', 
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ];
+        if (!allowedMimeTypes.includes(file.mimetype)) {
+            return res.status(400).json({ error: "Invalid file type. Only PDF and DOCX are allowed." });
+        }
+        
+        // -------------------------------
 
         // requireAuth already verified the user, so we just grab their ID
         const user = req.user;
