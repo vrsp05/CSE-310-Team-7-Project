@@ -281,6 +281,7 @@ app.get("/dashboard/profile", requireAuth, (req, res) => {
     res.render("dashboard/profile", { user: req.user });
 });
 
+
 // Server-side proxy to call Gemini (uses GEMINI_API_KEY from .env)
 app.post('/api/generate', requireAuth, async (req, res) => {
   try {
@@ -615,6 +616,16 @@ app.get('/logout', async (req, res) => {
     await supabase.auth.signOut();
     res.setHeader('Set-Cookie', 'supabaseToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;');
     res.redirect('/');
+});
+
+app.get('/forgotPassword', (req, res) => {
+    res.render('auth/forgotPassword');
+});
+
+app.post('/forgotPassword', (req, res) => {
+  const{ username } = req.body;
+  // Add password reset logic here.
+  res.render('auth/forgotPassword');
 });
 
 const PORT = process.env.PORT || 3000;
