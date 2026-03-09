@@ -8,6 +8,7 @@ import { fileURLToPath } from "url";
 import multer from "multer"; // Para manejar archivos
 import "dotenv/config"; // Carga variables de .env automáticamente
 import systemInstructionDefault from './config/geminiInstruction.js';
+import systemInstructionCoverLetter from './config/geminiInstructionCoverLetter.js';
 import { createClient } from "@supabase/supabase-js"; // Cliente de Supabase
 
 // ----------------------
@@ -467,30 +468,35 @@ app.post('/generate', requireAuth, async (req, res) => {
   }
 });
 
-// POST /generate-file - accept resume file + jobDescription, extract text and call Gemini
-app.post('/generate-file', requireAuth, upload.single('resumeFile'), async (req, res) => {
+// POST /generate-file - accept resume OR cover letter file + jobDescription, call Gemini
+app.post('/generate-file', requireAuth, upload.fields([
+  { name: 'resumeFile', maxCount: 1 },
+  { name: 'coverFile',  maxCount: 1 }
+]), async (req, res) => {
   try {
     const jobDescription = req.body.jobDescription || '';
-    const systemInstruction = process.env.GEMINI_SYSTEM_INSTRUCTION || systemInstructionDefault || '';
 
-    const file = req.file;
-    if (!file) return res.status(400).json({ error: 'No resume file uploaded. Please attach a PDF or DOCX.' });
+    const resumeFile = req.files?.resumeFile?.[0] || null;
+    const coverFile  = req.files?.coverFile?.[0]  || null;
+    const isCover    = !resumeFile && !!coverFile;
+    const file       = isCover ? coverFile : resumeFile;
 
-    // Extract text based on file type/extension
+    if (!file) return res.status(400).json({ error: 'No file uploaded. Please attach a PDF or DOCX.' });
+
+    // ── Extract text ──────────────────────────────────────────────────
     const name = (file.originalname || '').toLowerCase();
-    let resumeText = '';
+    let extractedText = '';
 
     if (name.endsWith('.pdf') || file.mimetype === 'application/pdf') {
-      // pdf-parse v1 exported a function; v2 exports { PDFParse } class.
       try {
         if (typeof pdfParse === 'function') {
           const parsed = await pdfParse(file.buffer);
-          resumeText = parsed?.text || '';
+          extractedText = parsed?.text || '';
         } else if (pdfParse && pdfParse.PDFParse) {
           const Parser = pdfParse.PDFParse;
           const parser = new Parser({ data: file.buffer });
           const parsed = await parser.getText();
-          resumeText = parsed?.text || '';
+          extractedText = parsed?.text || '';
           try { await parser.destroy(); } catch (e) { /* ignore */ }
         } else {
           return res.status(500).json({ error: 'Server error: pdf parsing library not available' });
@@ -501,78 +507,76 @@ app.post('/generate-file', requireAuth, upload.single('resumeFile'), async (req,
       }
     } else if (name.endsWith('.docx') || file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
       const result = await mammoth.extractRawText({ buffer: file.buffer });
-      resumeText = result.value || '';
+      extractedText = result.value || '';
     } else if (name.endsWith('.txt') || file.mimetype.startsWith('text/')) {
-      resumeText = file.buffer.toString('utf8');
+      extractedText = file.buffer.toString('utf8');
     } else {
       return res.status(400).json({ error: 'Unsupported file type. Please upload PDF, DOCX or TXT.' });
     }
 
-    const basePrompt = `Resume:\n${resumeText}\n\nJob Description:\n${jobDescription}`;
-    const finalPrompt = systemInstruction ? `${systemInstruction}\n\n${basePrompt}` : basePrompt;
+    // ── Pick system instruction & prompt ─────────────────────────────
+    const systemInstruction = isCover ? systemInstructionCoverLetter : systemInstructionDefault;
+    const docLabel  = isCover ? 'Cover Letter' : 'Resume';
+    const basePrompt = `${docLabel}:\n${extractedText}\n\nJob Description:\n${jobDescription}`;
 
+    // ── Call Gemini ───────────────────────────────────────────────────
     const key = process.env.GEMINI_API_KEY;
     if (!key) return res.status(500).json({ error: 'Server misconfigured: missing GEMINI_API_KEY' });
 
-    const body = { contents: [ { parts: [ { text: finalPrompt } ] } ], generationConfig: { thinkingConfig: { include_thoughts: true } } };
+    const body = {
+      system_instruction: { parts: [{ text: systemInstruction }] },
+      contents: [{ parts: [{ text: basePrompt }] }],
+      generationConfig: { thinkingConfig: { include_thoughts: true } }
+    };
 
-    // Prefer GEMINI_DEFAULT_MODEL if set, otherwise prefer Gemini 3 flash preview.
     const models = process.env.GEMINI_DEFAULT_MODEL
       ? [process.env.GEMINI_DEFAULT_MODEL, 'gemini-3-flash-preview']
       : ['gemini-3-flash-preview'];
+
     const { resp, data, model } = await callGeminiWithFallback(models, key, body);
     if (!resp || !resp.ok) {
       console.error('Gemini error (all models)', data);
-      if (data && data.error && /not found|not supported|unsupported/i.test(data.error.message || '')) {
-        console.error('Model appears unsupported for this API version. Try calling /debug/list-models to see available models.');
-      }
       return res.status(502).json({ error: data?.error?.message || 'Upstream error', details: data });
     }
 
     const parts = data?.candidates?.[0]?.content?.parts || [];
     let resultText = '';
-    parts.forEach(p => {
-      if (!p.thought && p.text) {
-        resultText += p.text + '\n';
-      }
-    });
+    parts.forEach(p => { if (!p.thought && p.text) resultText += p.text + '\n'; });
 
     const resultTrim = resultText.trim();
 
-    // Parse structured JSON response from Gemini
+    // ── Parse JSON from Gemini ────────────────────────────────────────
     let aiJson = null;
     try {
-      // Strip markdown fences if the model wrapped it anyway
-      const cleaned = resultTrim.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+      // Strip markdown fences
+      let cleaned = resultTrim.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+      // Find the outermost { ... } block in case Gemini adds extra text
+      const start = cleaned.indexOf('{');
+      const end   = cleaned.lastIndexOf('}');
+      if (start !== -1 && end !== -1) cleaned = cleaned.slice(start, end + 1);
       aiJson = JSON.parse(cleaned);
     } catch (e) {
-      console.warn('Gemini response was not valid JSON, storing as plain text', e.message);
+      console.warn('Gemini response was not valid JSON', e.message, '\nRaw:', resultTrim.slice(0, 400));
     }
 
-    const editedText   = aiJson?.editedResume   || null;
-    const score        = aiJson?.score          ?? null;
-    const matchingKeywords = aiJson?.matchingKeywords || null;
-    const missingGaps  = aiJson?.missingGaps    || null;
-    const summary      = aiJson?.summary        || null;
-    const suggestions  = aiJson?.suggestions    || null;
+    // ── Store in session ──────────────────────────────────────────────
+    const editedText = isCover ? (aiJson?.editedCoverLetter || null) : (aiJson?.editedResume || null);
+    if (isCover) console.log('[cover] editedCoverLetter present:', !!editedText, '| aiJson keys:', aiJson ? Object.keys(aiJson) : 'null');
+    req.session.last_ai_result = {
+      mode:             isCover ? 'cover' : 'resume',
+      prompt:           basePrompt,
+      result:           resultTrim,
+      editedText:       editedText,
+      score:            aiJson?.score           ?? null,
+      matchingKeywords: aiJson?.matchingKeywords || null,
+      missingGaps:      aiJson?.missingGaps      || null,
+      summary:          aiJson?.summary          || null,
+      suggestions:      aiJson?.suggestions      || null,
+      raw:              data,
+      modelUsed:        model
+    };
 
-    // store in session for Analysis page
-    try {
-      req.session.last_ai_result = {
-        prompt: basePrompt,
-        result: resultTrim,
-        editedText,
-        score,
-        matchingKeywords,
-        missingGaps,
-        summary,
-        suggestions,
-        raw: data,
-        modelUsed: model
-      };
-    } catch (e) { console.error(e); }
-
-    return res.json({ ok: true, editedText: editedText || null });
+    return res.json({ ok: true });
   } catch (err) {
     console.error('Error in /generate-file', err);
     return res.status(500).json({ error: 'Server error' });
