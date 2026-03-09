@@ -665,3 +665,12 @@ a:hover {
     width: 100%;
   }
 }
+
+/* forgot password text */
+.login-section a {
+    display: block;
+    font-size: 12px;
+    border-bottom: none;
+    text-decoration: underline;
+    margin-top: 8px;
+}

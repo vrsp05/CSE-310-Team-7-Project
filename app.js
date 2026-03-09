@@ -596,7 +596,7 @@ app.get('/dashboard/analysis', requireAuth, (req, res) => {
 // ... El resto de tus rutas de registro/login se mantienen igual ...
 
 // ----------------------
-// AUTH ROUTES (login / logout)
+// AUTH ROUTES (login / logout / reset password)
 // ----------------------
 app.post('/api/auth/signup', async (req, res) => {
     const { email, password, username } = req.body;
