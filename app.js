@@ -261,6 +261,7 @@ app.get("/debug/me", (req, res) => {
 });
 
 app.get("/", (req, res) => {
+  if (res.locals.user) return res.redirect("/dashboard");
   res.render("index", { error: req.query.error || null });
 });
 
@@ -281,6 +282,14 @@ app.get("/dashboard", requireAuth, async (req, res) => {
 app.get("/dashboard/profile", requireAuth, (req, res) => {
     res.render("dashboard/profile", { user: req.user });
 });
+
+app.get('/dashboard/interview', requireAuth, (req, res) => {
+  // Auto-fill from the last analysis session if available
+  const ai = req.session.last_ai_result || null;
+  res.render('dashboard/interview', { user: req.user, aiResult: ai });
+});
+
+
 
 // Server-side proxy to call Gemini (uses GEMINI_API_KEY from .env)
 app.post('/api/generate', requireAuth, async (req, res) => {
