@@ -185,9 +185,8 @@
     setupDropZone('resumeDropZone', 'resumeFilePdf', 'resumeDropLabel');
     setupDropZone('coverDropZone',  'coverFilePdf',  'coverDropLabel');
 
-    // ─── Render Resumes ────────────────────────────────────────────────
-    function renderResumes() {
-      const items = loadItems(RESUME_KEY);
+    // ─── Render Resumes (Cloud Version) ────────────────────────────────
+    function renderResumes(items) {
       document.getElementById('resumeCount').textContent = items.length;
       const list = document.getElementById('resumeList');
       if (items.length === 0) {
@@ -195,7 +194,6 @@
           <div class="profile-empty">
             <div class="profile-empty-icon">📄</div>
             <p>No resumes saved yet. Click <strong>+ Upload Resume PDF</strong> to get started.</p>
-            <p class="profile-empty-sub">Once saved, you can select any resume directly from the <a href="/dashboard">Analyze</a> page.</p>
           </div>`;
         return;
       }
@@ -207,27 +205,18 @@
               <span class="profile-card-title">${escHtml(item.title || 'Untitled Resume')}</span>
               <span class="profile-card-meta">
                 ${formatDate(item.createdAt)}
-                ${item.score ? ` · Score: <strong style="color:${scoreColor(item.score)}">${item.score}%</strong>` : ''}
-                ${item.dataUrl ? ' · <span class="profile-has-pdf">PDF saved</span>' : ''}
+                <span class="profile-has-pdf">☁️ Saved in Supabase</span>
               </span>
             </div>
             <div class="profile-card-actions">
-              ${item.dataUrl ? `
-                <button class="btn btn-outline btn-sm" data-action="preview" data-id="${item.id}" data-type="resume">👁 Preview</button>
-                <a class="btn btn-outline btn-sm" href="${escHtml(item.dataUrl)}" download="${escHtml((item.title||'resume').replace(/[^a-z0-9]/gi,'_'))}.pdf">⬇ Download</a>
-                <button class="btn btn-outline btn-sm" data-action="analyze" data-id="${item.id}" data-type="resume">🔬 Analyze</button>
-              ` : ''}
-              <button class="btn btn-outline btn-sm" data-action="edit" data-id="${item.id}" data-type="resume">✏ Edit</button>
-              <button class="btn btn-outline btn-sm btn-danger" data-action="delete" data-id="${item.id}" data-type="resume">Delete</button>
+              <span style="color: #16a34a; font-weight: bold;">Sync Successful!</span>
             </div>
           </div>
-          ${item.notes ? `<p class="profile-card-notes">${escHtml(item.notes)}</p>` : ''}
         </div>`).join('');
     }
 
-    // ─── Render Cover Letters ──────────────────────────────────────────
-    function renderCovers() {
-      const items = loadItems(COVER_KEY);
+    // ─── Render Cover Letters (Cloud Version) ──────────────────────────
+    function renderCovers(items) {
       document.getElementById('coverCount').textContent = items.length;
       const list = document.getElementById('coverList');
       if (items.length === 0) {
@@ -246,21 +235,58 @@
               <span class="profile-card-title">${escHtml(item.title || 'Untitled Cover Letter')}</span>
               <span class="profile-card-meta">
                 ${formatDate(item.createdAt)}
-                ${item.dataUrl ? ' · <span class="profile-has-pdf">PDF saved</span>' : ''}
+                <span class="profile-has-pdf">☁️ Saved in Supabase</span>
               </span>
             </div>
             <div class="profile-card-actions">
-              ${item.dataUrl ? `
-                <button class="btn btn-outline btn-sm" data-action="preview" data-id="${item.id}" data-type="cover">👁 Preview</button>
-                <a class="btn btn-outline btn-sm" href="${escHtml(item.dataUrl)}" download="${escHtml((item.title||'cover').replace(/[^a-z0-9]/gi,'_'))}.pdf">⬇ Download</a>
-              ` : ''}
-              <button class="btn btn-outline btn-sm" data-action="edit" data-id="${item.id}" data-type="cover">✏ Edit</button>
-              <button class="btn btn-outline btn-sm btn-danger" data-action="delete" data-id="${item.id}" data-type="cover">Delete</button>
+              <span style="color: #16a34a; font-weight: bold;">Sync Successful!</span>
             </div>
           </div>
-          ${item.notes ? `<p class="profile-card-notes">${escHtml(item.notes)}</p>` : ''}
         </div>`).join('');
     }
+
+    // ─── NEW: Fetch from Supabase on Page Load ─────────────────────────
+    async function loadCloudData() {
+        try {
+            const resp = await fetch('/api/storage/files');
+            const data = await resp.json();
+
+            if (!data.files) return;
+
+            const resumes = [];
+            const covers = [];
+
+            // Sort the JSON data into the right tabs and clean up the filenames
+            data.files.forEach(row => {
+                if (row.resume_text) {
+                    resumes.push({
+                        id: row.id,
+                        // This math removes your UUID and the timestamp to show the original clean filename!
+                        title: row.resume_text.split('/').pop().split('_').slice(1).join('_'),
+                        createdAt: row.created_at
+                    });
+                }
+                if (row.cover_letter_text) {
+                    covers.push({
+                        id: row.id,
+                        title: row.cover_letter_text.split('/').pop().split('_').slice(1).join('_'),
+                        createdAt: row.created_at
+                    });
+                }
+            });
+
+            // Send the cleaned data to our render functions
+            renderResumes(resumes);
+            renderCovers(covers);
+
+        } catch (e) {
+            console.error("Failed to fetch cloud files:", e);
+            showToast("Failed to sync files with the cloud.");
+        }
+    }
+
+    // Kick off the fetch the moment the page opens!
+    loadCloudData();
 
     // ─── Event delegation for card buttons ────────────────────────────
     document.getElementById('resumeList').addEventListener('click', e => {
@@ -282,67 +308,87 @@
     });
 
     // ─── Add Resume ────────────────────────────────────────────────────
-    document.getElementById('btnAddResume').addEventListener('click', () => {
-      document.getElementById('resumeTitle').value = '';
-      document.getElementById('resumeNotes').value = '';
-      document.getElementById('resumeFilePdf').value = '';
-      document.getElementById('resumeDropLabel').textContent = 'Drag & drop a PDF here, or click to browse';
-      document.getElementById('resumeForm').style.display = '';
-      document.getElementById('resumeTitle').focus();
-    });
-    document.getElementById('btnCancelResume').addEventListener('click', () => {
-      document.getElementById('resumeForm').style.display = 'none';
-    });
     document.getElementById('btnSaveResume').addEventListener('click', async () => {
       const title = document.getElementById('resumeTitle').value.trim();
       const notes = document.getElementById('resumeNotes').value.trim();
       const file  = document.getElementById('resumeFilePdf').files?.[0];
+      
       if (!title) { document.getElementById('resumeTitle').focus(); showToast('Please enter a title.'); return; }
       if (!file)  { showToast('Please select a PDF file.'); return; }
+      
       const btn = document.getElementById('btnSaveResume');
-      btn.disabled = true; btn.textContent = 'Saving…';
+      btn.disabled = true; btn.textContent = 'Uploading to Cloud... ⏳';
+      
       try {
-        const dataUrl = await readFileAsDataUrl(file);
-        const items = loadItems(RESUME_KEY);
-        items.unshift({ id: newId(), title, notes, dataUrl, score: null, createdAt: new Date().toISOString() });
-        saveItems(RESUME_KEY, items);
+        // --- 1. NEW SUPABASE UPLOAD LOGIC ---
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('bucket', 'resumes'); // Targets your secure bucket
+        
+        const response = await fetch('/api/storage/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || "Server rejected the file.");
+        }
+        
+        // --- 2. REFRESH THE CLOUD DATA ---
         document.getElementById('resumeForm').style.display = 'none';
-        renderResumes();
-        showToast('Resume saved!');
-      } catch(e) { showToast('Error reading file.'); }
-      finally    { btn.disabled = false; btn.textContent = 'Save Resume'; }
+        await loadCloudData(); // Fetches the fresh list straight from Supabase!
+        showToast('✅ Saved to Supabase Vault!');
+
+      } catch(e) { 
+        console.error("Upload Error:", e);
+        showToast('❌ Error: ' + e.message); 
+      }
+      finally { 
+        btn.disabled = false; btn.textContent = 'Save Resume'; 
+      }
     });
 
     // ─── Add Cover Letter ──────────────────────────────────────────────
-    document.getElementById('btnAddCover').addEventListener('click', () => {
-      document.getElementById('coverTitle').value = '';
-      document.getElementById('coverNotes').value = '';
-      document.getElementById('coverFilePdf').value = '';
-      document.getElementById('coverDropLabel').textContent = 'Drag & drop a PDF here, or click to browse';
-      document.getElementById('coverForm').style.display = '';
-      document.getElementById('coverTitle').focus();
-    });
-    document.getElementById('btnCancelCover').addEventListener('click', () => {
-      document.getElementById('coverForm').style.display = 'none';
-    });
     document.getElementById('btnSaveCover').addEventListener('click', async () => {
       const title = document.getElementById('coverTitle').value.trim();
       const notes = document.getElementById('coverNotes').value.trim();
       const file  = document.getElementById('coverFilePdf').files?.[0];
+      
       if (!title) { document.getElementById('coverTitle').focus(); showToast('Please enter a title.'); return; }
       if (!file)  { showToast('Please select a PDF file.'); return; }
+      
       const btn = document.getElementById('btnSaveCover');
-      btn.disabled = true; btn.textContent = 'Saving…';
+      btn.disabled = true; btn.textContent = 'Uploading to Cloud... ⏳';
+      
       try {
-        const dataUrl = await readFileAsDataUrl(file);
-        const items = loadItems(COVER_KEY);
-        items.unshift({ id: newId(), title, notes, dataUrl, createdAt: new Date().toISOString() });
-        saveItems(COVER_KEY, items);
+        // --- 1. NEW SUPABASE UPLOAD LOGIC ---
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('bucket', 'cover-letters'); // Targets your secure bucket
+        
+        const response = await fetch('/api/storage/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || "Server rejected the file.");
+        }
+        
+        // --- 2. REFRESH THE CLOUD DATA ---
         document.getElementById('coverForm').style.display = 'none';
-        renderCovers();
-        showToast('Cover letter saved!');
-      } catch(e) { showToast('Error reading file.'); }
-      finally    { btn.disabled = false; btn.textContent = 'Save Cover Letter'; }
+        await loadCloudData(); // Fetches the fresh list straight from Supabase!
+        showToast('✅ Saved to Supabase Vault!');
+
+      } catch(e) { 
+        console.error("Upload Error:", e);
+        showToast('❌ Error: ' + e.message); 
+      }
+      finally { 
+        btn.disabled = false; btn.textContent = 'Save Cover Letter'; 
+      }
     });
 
     // ─── Delete ────────────────────────────────────────────────────────
@@ -452,9 +498,6 @@
       window.location.href = '/dashboard';
     };
 
-    // ─── Initial render ────────────────────────────────────────────────
-    renderResumes();
-    renderCovers();
   })();
   </script>
 </body>
