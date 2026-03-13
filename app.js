@@ -117,11 +117,19 @@ async function requireAuth(req, res, next) {
   if (!token) return res.redirect('/?error=Please+login+first');
 
   const { data: { user }, error } = await supabase.auth.getUser(token);
+const { data: { user }, error } = await supabase.auth.getUser(token);
     if (error || !user) return res.redirect('/?error=Session+expired');
 
   res.locals.user = { ...user, username: user.user_metadata?.display_name || user.email };
   req.user = res.locals.user;
   req.authToken = token;
+    // --- NEW: THE USERNAME TRANSLATOR ---
+    // Make Supabase's data match what your team's EJS templates expect!
+    user.username = user.user_metadata?.display_name || user.email.split('@')[0];
+
+    res.locals.user = user; 
+    req.user = user;
+    req.token = token; 
     next();
 }
 
@@ -137,37 +145,36 @@ app.post('/api/storage/upload', requireAuth, upload.single('file'), async (req, 
       { global: { headers: { Authorization: `Bearer ${req.authToken}` } } }
     );
 
+try {
         const file = req.file;
-        const bucket = req.body.bucket; // 'resumes' or 'cover-letters'
+        const bucket = req.body.bucket; 
+        const user = req.user;
 
         if (!file) return res.status(400).json({ error: "No file provided" });
-        
-        // --- NEW SECURITY VALIDATION ---
-        
-        // 1. Block invalid buckets (Hacker Test G)
-        const allowedBuckets = ['resumes', 'cover-letters'];
-        if (!allowedBuckets.includes(bucket)) {
-            return res.status(400).json({ error: "Invalid storage bucket." });
-        }
 
-        // 2. Block invalid file types (Hacker Test F)
+        // --- SECURITY VALIDATION ---
+        const allowedBuckets = ['resumes', 'cover-letters'];
+        if (!allowedBuckets.includes(bucket)) return res.status(400).json({ error: "Invalid storage bucket." });
+
         const allowedMimeTypes = [
             'application/pdf', 
             'application/msword', 
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         ];
-        if (!allowedMimeTypes.includes(file.mimetype)) {
-            return res.status(400).json({ error: "Invalid file type. Only PDF and DOCX are allowed." });
-        }
-        
+        if (!allowedMimeTypes.includes(file.mimetype)) return res.status(400).json({ error: "Invalid file type." });
         // -------------------------------
 
-        // requireAuth already verified the user, so we just grab their ID
-        const user = req.user;
+        // --- NEW: THE ID BADGE ---
+        // Create a temporary Supabase client that wears THIS user's exact token. 
+        // This proves to the Vault that the user is authorized!
+        const userSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+            global: { headers: { Authorization: `Bearer ${req.token}` } }
+        });
 
-        // 1. Upload to Storage with a unique timestamped name
+        // 1. Upload to Storage using the authorized user client
         const uniqueName = `${Date.now()}_${file.originalname}`;
     const { data: storageData, error: storageError } = await supaUser.storage
+        const { data: storageData, error: storageError } = await userSupabase.storage
             .from(bucket)
             .upload(`${user.id}/${uniqueName}`, file.buffer, {
                 contentType: file.mimetype,
@@ -182,12 +189,27 @@ app.post('/api/storage/upload', requireAuth, upload.single('file'), async (req, 
         const { data: signed } = await supaUser.storage
           .from(bucket)
           .createSignedUrl(storageData.path, 3600);
+        // 2. Prepare the database entry
+        const entry = {
+            user_id: user.id,
+            resume_text: bucket === 'resumes' ? storageData.path : null,
+            cover_letter_text: bucket === 'cover-letters' ? storageData.path : null
+        };
+
+        // 3. Insert into the 'applications' table using the authorized user client
+        const { data: dbData, error: dbError } = await userSupabase
+            .from('applications')
+            .insert([entry])
+            .select();
+
+        if (dbError) throw dbError;
 
         res.json({ 
       message: "Success! File stored.", 
       path: storageData.path,
       signedUrl: signed?.signedUrl || null
     });
+        res.json({ message: "Success! File stored and DB row created.", path: storageData.path });
 
     } catch (err) {
         console.error("SERVER ERROR:", err.message);
@@ -235,6 +257,35 @@ app.get('/api/storage/list', requireAuth, async (req, res) => {
     console.error('[LIST ERROR]', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ----------------------
+// NEW: FETCH USER FILES ROUTE
+// ----------------------
+app.get('/api/storage/files', requireAuth, async (req, res) => {
+    try {
+        const user = req.user;
+
+        // Create the temporary client wearing the user's ID badge
+        const userSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+            global: { headers: { Authorization: `Bearer ${req.token}` } }
+        });
+
+        // Ask the database for all rows belonging to this specific user
+        const { data, error } = await userSupabase
+            .from('applications')
+            .select('*')
+            // Order them so the newest uploads show up first!
+            .order('created_at', { ascending: false }); 
+
+        if (error) throw error;
+
+        res.json({ files: data });
+
+    } catch (err) {
+        console.error("Fetch Files Error:", err.message);
+        res.status(500).json({ error: "Failed to fetch files from the cloud." });
+    }
 });
 
 import helmet from 'helmet';
