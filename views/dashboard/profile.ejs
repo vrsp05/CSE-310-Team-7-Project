@@ -282,67 +282,97 @@
     });
 
     // ─── Add Resume ────────────────────────────────────────────────────
-    document.getElementById('btnAddResume').addEventListener('click', () => {
-      document.getElementById('resumeTitle').value = '';
-      document.getElementById('resumeNotes').value = '';
-      document.getElementById('resumeFilePdf').value = '';
-      document.getElementById('resumeDropLabel').textContent = 'Drag & drop a PDF here, or click to browse';
-      document.getElementById('resumeForm').style.display = '';
-      document.getElementById('resumeTitle').focus();
-    });
-    document.getElementById('btnCancelResume').addEventListener('click', () => {
-      document.getElementById('resumeForm').style.display = 'none';
-    });
     document.getElementById('btnSaveResume').addEventListener('click', async () => {
       const title = document.getElementById('resumeTitle').value.trim();
       const notes = document.getElementById('resumeNotes').value.trim();
       const file  = document.getElementById('resumeFilePdf').files?.[0];
+      
       if (!title) { document.getElementById('resumeTitle').focus(); showToast('Please enter a title.'); return; }
       if (!file)  { showToast('Please select a PDF file.'); return; }
+      
       const btn = document.getElementById('btnSaveResume');
-      btn.disabled = true; btn.textContent = 'Saving…';
+      btn.disabled = true; btn.textContent = 'Uploading to Cloud... ⏳';
+      
       try {
-        const dataUrl = await readFileAsDataUrl(file);
+        // --- 1. NEW SUPABASE UPLOAD LOGIC ---
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('bucket', 'resumes'); // Targets your secure bucket
+        
+        const response = await fetch('/api/storage/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || "Server rejected the file.");
+        }
+
+        // --- 2. TEMPORARY UI FIX (Until Phase 3) ---
+        // We still save the title/notes locally so the list doesn't break today, 
+        // but we STOP saving the massive Base64 PDF file to the browser!
         const items = loadItems(RESUME_KEY);
-        items.unshift({ id: newId(), title, notes, dataUrl, score: null, createdAt: new Date().toISOString() });
+        items.unshift({ id: newId(), title, notes, dataUrl: "saved-in-supabase", score: null, createdAt: new Date().toISOString() });
         saveItems(RESUME_KEY, items);
+        
         document.getElementById('resumeForm').style.display = 'none';
         renderResumes();
-        showToast('Resume saved!');
-      } catch(e) { showToast('Error reading file.'); }
-      finally    { btn.disabled = false; btn.textContent = 'Save Resume'; }
+        showToast('✅ Saved to Supabase Vault!');
+
+      } catch(e) { 
+        console.error("Upload Error:", e);
+        showToast('❌ Error: ' + e.message); 
+      }
+      finally { 
+        btn.disabled = false; btn.textContent = 'Save Resume'; 
+      }
     });
 
     // ─── Add Cover Letter ──────────────────────────────────────────────
-    document.getElementById('btnAddCover').addEventListener('click', () => {
-      document.getElementById('coverTitle').value = '';
-      document.getElementById('coverNotes').value = '';
-      document.getElementById('coverFilePdf').value = '';
-      document.getElementById('coverDropLabel').textContent = 'Drag & drop a PDF here, or click to browse';
-      document.getElementById('coverForm').style.display = '';
-      document.getElementById('coverTitle').focus();
-    });
-    document.getElementById('btnCancelCover').addEventListener('click', () => {
-      document.getElementById('coverForm').style.display = 'none';
-    });
     document.getElementById('btnSaveCover').addEventListener('click', async () => {
       const title = document.getElementById('coverTitle').value.trim();
       const notes = document.getElementById('coverNotes').value.trim();
       const file  = document.getElementById('coverFilePdf').files?.[0];
+      
       if (!title) { document.getElementById('coverTitle').focus(); showToast('Please enter a title.'); return; }
       if (!file)  { showToast('Please select a PDF file.'); return; }
+      
       const btn = document.getElementById('btnSaveCover');
-      btn.disabled = true; btn.textContent = 'Saving…';
+      btn.disabled = true; btn.textContent = 'Uploading to Cloud... ⏳';
+      
       try {
-        const dataUrl = await readFileAsDataUrl(file);
+        // --- 1. NEW SUPABASE UPLOAD LOGIC ---
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('bucket', 'cover-letters'); // Targets your secure bucket
+        
+        const response = await fetch('/api/storage/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || "Server rejected the file.");
+        }
+
+        // --- 2. TEMPORARY UI FIX (Until Phase 3) ---
         const items = loadItems(COVER_KEY);
-        items.unshift({ id: newId(), title, notes, dataUrl, createdAt: new Date().toISOString() });
+        items.unshift({ id: newId(), title, notes, dataUrl: "saved-in-supabase", createdAt: new Date().toISOString() });
         saveItems(COVER_KEY, items);
+        
         document.getElementById('coverForm').style.display = 'none';
         renderCovers();
-        showToast('Cover letter saved!');
-      } catch(e) { showToast('Error reading file.'); }
-      finally    { btn.disabled = false; btn.textContent = 'Save Cover Letter'; }
+        showToast('✅ Saved to Supabase Vault!');
+
+      } catch(e) { 
+        console.error("Upload Error:", e);
+        showToast('❌ Error: ' + e.message); 
+      }
+      finally { 
+        btn.disabled = false; btn.textContent = 'Save Cover Letter'; 
+      }
     });
 
     // ─── Delete ────────────────────────────────────────────────────────
