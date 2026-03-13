@@ -116,11 +116,16 @@ async function requireAuth(req, res, next) {
 
     if (!token) return res.redirect('/?error=Please+login+first');
 
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+const { data: { user }, error } = await supabase.auth.getUser(token);
     if (error || !user) return res.redirect('/?error=Session+expired');
 
-    res.locals.user = { ...user, username: user.user_metadata?.display_name || user.email };
-    req.user = res.locals.user;
+    // --- NEW: THE USERNAME TRANSLATOR ---
+    // Make Supabase's data match what your team's EJS templates expect!
+    user.username = user.user_metadata?.display_name || user.email.split('@')[0];
+
+    res.locals.user = user; 
+    req.user = user;
+    req.token = token; 
     next();
 }
 
@@ -128,38 +133,35 @@ async function requireAuth(req, res, next) {
 // NUEVAS RUTAS DE SUPABASE
 // ----------------------
 app.post('/api/storage/upload', requireAuth, upload.single('file'), async (req, res) => {
-    try {
+try {
         const file = req.file;
-        const bucket = req.body.bucket; // 'resumes' or 'cover-letters'
+        const bucket = req.body.bucket; 
+        const user = req.user;
 
         if (!file) return res.status(400).json({ error: "No file provided" });
-        
-        // --- NEW SECURITY VALIDATION ---
-        
-        // 1. Block invalid buckets (Hacker Test G)
-        const allowedBuckets = ['resumes', 'cover-letters'];
-        if (!allowedBuckets.includes(bucket)) {
-            return res.status(400).json({ error: "Invalid storage bucket." });
-        }
 
-        // 2. Block invalid file types (Hacker Test F)
+        // --- SECURITY VALIDATION ---
+        const allowedBuckets = ['resumes', 'cover-letters'];
+        if (!allowedBuckets.includes(bucket)) return res.status(400).json({ error: "Invalid storage bucket." });
+
         const allowedMimeTypes = [
             'application/pdf', 
             'application/msword', 
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         ];
-        if (!allowedMimeTypes.includes(file.mimetype)) {
-            return res.status(400).json({ error: "Invalid file type. Only PDF and DOCX are allowed." });
-        }
-        
+        if (!allowedMimeTypes.includes(file.mimetype)) return res.status(400).json({ error: "Invalid file type." });
         // -------------------------------
 
-        // requireAuth already verified the user, so we just grab their ID
-        const user = req.user;
+        // --- NEW: THE ID BADGE ---
+        // Create a temporary Supabase client that wears THIS user's exact token. 
+        // This proves to the Vault that the user is authorized!
+        const userSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+            global: { headers: { Authorization: `Bearer ${req.token}` } }
+        });
 
-        // 1. Upload to Storage with a unique timestamped name
+        // 1. Upload to Storage using the authorized user client
         const uniqueName = `${Date.now()}_${file.originalname}`;
-        const { data: storageData, error: storageError } = await supabase.storage
+        const { data: storageData, error: storageError } = await userSupabase.storage
             .from(bucket)
             .upload(`${user.id}/${uniqueName}`, file.buffer, {
                 contentType: file.mimetype,
@@ -177,21 +179,15 @@ app.post('/api/storage/upload', requireAuth, upload.single('file'), async (req, 
             cover_letter_text: bucket === 'cover-letters' ? storageData.path : null
         };
 
-        // 3. Insert into the 'applications' table
-        const { data: dbData, error: dbError } = await supabase
+        // 3. Insert into the 'applications' table using the authorized user client
+        const { data: dbData, error: dbError } = await userSupabase
             .from('applications')
             .insert([entry])
             .select();
 
-        if (dbError) {
-            console.error("Database Error:", dbError.message);
-            return res.status(400).json({ error: "DB Error: " + dbError.message });
-        }
+        if (dbError) throw dbError;
 
-        res.json({ 
-            message: "Success! File stored and DB row created.", 
-            path: storageData.path 
-        });
+        res.json({ message: "Success! File stored and DB row created.", path: storageData.path });
 
     } catch (err) {
         console.error("SERVER ERROR:", err.message);
