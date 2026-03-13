@@ -195,6 +195,35 @@ try {
     }
 });
 
+// ----------------------
+// NEW: FETCH USER FILES ROUTE
+// ----------------------
+app.get('/api/storage/files', requireAuth, async (req, res) => {
+    try {
+        const user = req.user;
+
+        // Create the temporary client wearing the user's ID badge
+        const userSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+            global: { headers: { Authorization: `Bearer ${req.token}` } }
+        });
+
+        // Ask the database for all rows belonging to this specific user
+        const { data, error } = await userSupabase
+            .from('applications')
+            .select('*')
+            // Order them so the newest uploads show up first!
+            .order('created_at', { ascending: false }); 
+
+        if (error) throw error;
+
+        res.json({ files: data });
+
+    } catch (err) {
+        console.error("Fetch Files Error:", err.message);
+        res.status(500).json({ error: "Failed to fetch files from the cloud." });
+    }
+});
+
 import helmet from 'helmet';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
