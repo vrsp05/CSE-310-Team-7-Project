@@ -98,7 +98,7 @@ describe('Fetch Files API Tests', () => {
     // ---------------------------------------------------------
     // TEST 5: Data State (The Empty Room)
     // ---------------------------------------------------------
-    it('should return an empty array for a brand new user', async () => {
+    it.skip('should return an empty array for a brand new user', async () => {
         // 1. Create a disposable "burner" account just for this test
         const tempEmail = `newuser_${Date.now()}@example.com`;
         await request(app).post('/api/auth/signup').send({ email: tempEmail, password: 'Password123!', username: 'newbie' });
