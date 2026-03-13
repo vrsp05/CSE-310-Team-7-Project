@@ -114,11 +114,15 @@ async function requireAuth(req, res, next) {
         if (tokenCookie) token = tokenCookie.split('=')[1];
     }
 
-    if (!token) return res.redirect('/?error=Please+login+first');
+  if (!token) return res.redirect('/?error=Please+login+first');
 
+  const { data: { user }, error } = await supabase.auth.getUser(token);
 const { data: { user }, error } = await supabase.auth.getUser(token);
     if (error || !user) return res.redirect('/?error=Session+expired');
 
+  res.locals.user = { ...user, username: user.user_metadata?.display_name || user.email };
+  req.user = res.locals.user;
+  req.authToken = token;
     // --- NEW: THE USERNAME TRANSLATOR ---
     // Make Supabase's data match what your team's EJS templates expect!
     user.username = user.user_metadata?.display_name || user.email.split('@')[0];
@@ -133,6 +137,14 @@ const { data: { user }, error } = await supabase.auth.getUser(token);
 // NUEVAS RUTAS DE SUPABASE
 // ----------------------
 app.post('/api/storage/upload', requireAuth, upload.single('file'), async (req, res) => {
+    try {
+    // Build a per-request Supabase client with the user's JWT so Storage sees their identity
+    const supaUser = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_ANON_KEY,
+      { global: { headers: { Authorization: `Bearer ${req.authToken}` } } }
+    );
+
 try {
         const file = req.file;
         const bucket = req.body.bucket; 
@@ -161,6 +173,7 @@ try {
 
         // 1. Upload to Storage using the authorized user client
         const uniqueName = `${Date.now()}_${file.originalname}`;
+    const { data: storageData, error: storageError } = await supaUser.storage
         const { data: storageData, error: storageError } = await userSupabase.storage
             .from(bucket)
             .upload(`${user.id}/${uniqueName}`, file.buffer, {
@@ -170,8 +183,12 @@ try {
 
         if (storageError) throw storageError;
 
-        console.log(`[FILE SAVED] Path: ${storageData.path}`);
+    console.log(`[FILE SAVED] Path: ${storageData.path}`);
 
+        // Return success for storage only (RLS-safe) plus a signed URL for immediate use
+        const { data: signed } = await supaUser.storage
+          .from(bucket)
+          .createSignedUrl(storageData.path, 3600);
         // 2. Prepare the database entry
         const entry = {
             user_id: user.id,
@@ -187,12 +204,59 @@ try {
 
         if (dbError) throw dbError;
 
+        res.json({ 
+      message: "Success! File stored.", 
+      path: storageData.path,
+      signedUrl: signed?.signedUrl || null
+    });
         res.json({ message: "Success! File stored and DB row created.", path: storageData.path });
 
     } catch (err) {
         console.error("SERVER ERROR:", err.message);
         res.status(500).json({ error: err.message });
     }
+});
+
+// List saved files for this user in a bucket (returns signed URLs)
+app.get('/api/storage/list', requireAuth, async (req, res) => {
+  try {
+    const bucket = req.query.bucket;
+    const allowedBuckets = ['resumes', 'cover-letters'];
+    if (!allowedBuckets.includes(bucket)) {
+      return res.status(400).json({ error: 'Invalid bucket' });
+    }
+
+    const supaUser = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_ANON_KEY,
+      { global: { headers: { Authorization: `Bearer ${req.authToken}` } } }
+    );
+
+    const userId = req.user.id;
+    const { data: fileList, error: listError } = await supaUser.storage
+      .from(bucket)
+      .list(userId, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+
+    if (listError) throw listError;
+    if (!fileList?.length) return res.json({ files: [] });
+
+    const files = await Promise.all(
+      fileList
+        .filter(f => f.name !== '.emptyFolderPlaceholder')
+        .map(async f => {
+          const path = `${userId}/${f.name}`;
+          const { data: urlData } = await supaUser.storage
+            .from(bucket)
+            .createSignedUrl(path, 3600);
+          return { name: path, url: urlData?.signedUrl || '' };
+        })
+    );
+
+    res.json({ files });
+  } catch (err) {
+    console.error('[LIST ERROR]', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ----------------------
