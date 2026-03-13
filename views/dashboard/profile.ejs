@@ -33,7 +33,7 @@
     <section class="profile-section" id="section-resumes">
       <div class="profile-section-header">
         <h2 class="profile-section-title">Saved Resumes</h2>
-        <button class="btn btn-primary" id="btnAddResume">+ Upload Resume PDF</button>
+        <button class="btn btn-primary" type="button" id="btnAddResume">+ Upload Resume PDF</button>
       </div>
 
       <!-- Upload form -->
@@ -54,8 +54,8 @@
             </div>
           </label>
           <div class="profile-form-actions">
-            <button class="btn btn-primary" id="btnSaveResume">Save Resume</button>
-            <button class="btn btn-outline" id="btnCancelResume">Cancel</button>
+            <button class="btn btn-primary" type="button" id="btnSaveResume">Save Resume</button>
+            <button class="btn btn-outline" type="button" id="btnCancelResume">Cancel</button>
           </div>
         </div>
       </div>
@@ -67,7 +67,7 @@
     <section class="profile-section" id="section-covers" style="display:none;">
       <div class="profile-section-header">
         <h2 class="profile-section-title">Saved Cover Letters</h2>
-        <button class="btn btn-primary" id="btnAddCover">+ Upload Cover Letter PDF</button>
+        <button class="btn btn-primary" type="button" id="btnAddCover">+ Upload Cover Letter PDF</button>
       </div>
 
       <!-- Upload form -->
@@ -88,8 +88,8 @@
             </div>
           </label>
           <div class="profile-form-actions">
-            <button class="btn btn-primary" id="btnSaveCover">Save Cover Letter</button>
-            <button class="btn btn-outline" id="btnCancelCover">Cancel</button>
+            <button class="btn btn-primary" type="button" id="btnSaveCover">Save Cover Letter</button>
+            <button class="btn btn-outline" type="button" id="btnCancelCover">Cancel</button>
           </div>
         </div>
       </div>
@@ -103,9 +103,23 @@
 
   <script>
   (() => {
+    // Prevent any implicit form submissions from reloading the page
+    document.addEventListener('submit', e => e.preventDefault());
+
     const username   = document.querySelector('meta[name="jc-user"]')?.getAttribute('content') || 'guest';
     const RESUME_KEY = `jc_resumes_${username}`;
     const COVER_KEY  = `jc_covers_${username}`;
+
+    // Dedup helper (by path or id)
+    function dedupByPath(items) {
+      const map = new Map();
+      items.forEach(it => {
+        const key = it.path || it.id;
+        if (!key) return;
+        if (!map.has(key)) map.set(key, it);
+      });
+      return Array.from(map.values());
+    }
 
     // ─── Helpers ───────────────────────────────────────────────────────
     function loadItems(key) {
@@ -123,13 +137,43 @@
       const n = parseInt(s,10);
       return n >= 80 ? '#16a34a' : n >= 60 ? '#d97706' : '#dc2626';
     }
-    function readFileAsDataUrl(file) {
-      return new Promise((res,rej) => {
-        const r = new FileReader();
-        r.onload  = e => res(e.target.result);
-        r.onerror = rej;
-        r.readAsDataURL(file);
-      });
+    async function uploadToSupabase(file, bucket) {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('bucket', bucket);
+      const resp = await fetch('/api/storage/upload', { method: 'POST', body: fd, credentials: 'same-origin' });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data?.error || 'Upload failed');
+      return { path: data.path, signedUrl: data.signedUrl || null };
+    }
+
+    async function syncFromSupabase(bucket, key) {
+      try {
+        const resp = await fetch(`/api/storage/list?bucket=${bucket}`, { credentials: 'same-origin' });
+        const data = await resp.json();
+        if (!resp.ok || !data.files) return;
+
+        // Dedup by base filename (keep newest)
+        const byName = new Map();
+        data.files.forEach(f => {
+          const nameOnly = f.name.replace(/^[^\/]+\//, '').replace(/^\d+_/, '');
+          const created = f.created_at ? new Date(f.created_at).toISOString() : new Date().toISOString();
+          const existing = byName.get(nameOnly);
+          if (!existing || created > existing.createdAt) {
+            byName.set(nameOnly, {
+              id: f.name,
+              title: nameOnly || 'Untitled',
+              notes: '',
+              dataUrl: f.url,
+              path: f.name,
+              createdAt: created,
+              score: null
+            });
+          }
+        });
+        const items = Array.from(byName.values()).sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+        saveItems(key, items);
+      } catch(e) { console.warn('syncFromSupabase failed', e); }
     }
 
     // ─── Toast ─────────────────────────────────────────────────────────
@@ -159,7 +203,11 @@
       const input = document.getElementById(inputId);
       const label = document.getElementById(labelId);
       if (!zone) return;
-      zone.addEventListener('click', () => input.click());
+      zone.addEventListener('click', (e) => {
+        // Avoid double file dialogs when clicking directly on the input
+        if (e.target === input) return;
+        input.click();
+      });
       zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('profile-file-drop-hover'); });
       zone.addEventListener('dragleave', () => zone.classList.remove('profile-file-drop-hover'));
       zone.addEventListener('drop', e => {
@@ -187,7 +235,8 @@
 
     // ─── Render Resumes ────────────────────────────────────────────────
     function renderResumes() {
-      const items = loadItems(RESUME_KEY);
+      const items = dedupByPath(loadItems(RESUME_KEY));
+      saveItems(RESUME_KEY, items);
       document.getElementById('resumeCount').textContent = items.length;
       const list = document.getElementById('resumeList');
       if (items.length === 0) {
@@ -227,7 +276,8 @@
 
     // ─── Render Cover Letters ──────────────────────────────────────────
     function renderCovers() {
-      const items = loadItems(COVER_KEY);
+      const items = dedupByPath(loadItems(COVER_KEY));
+      saveItems(COVER_KEY, items);
       document.getElementById('coverCount').textContent = items.length;
       const list = document.getElementById('coverList');
       if (items.length === 0) {
@@ -302,14 +352,13 @@
       const btn = document.getElementById('btnSaveResume');
       btn.disabled = true; btn.textContent = 'Saving…';
       try {
-        const dataUrl = await readFileAsDataUrl(file);
-        const items = loadItems(RESUME_KEY);
-        items.unshift({ id: newId(), title, notes, dataUrl, score: null, createdAt: new Date().toISOString() });
-        saveItems(RESUME_KEY, items);
+  const upload = await uploadToSupabase(file, 'resumes');
+  const items = dedupByPath([{ id: upload.path, title, notes, dataUrl: upload.signedUrl || '', path: upload.path, score: null, createdAt: new Date().toISOString() }, ...loadItems(RESUME_KEY)]);
+  saveItems(RESUME_KEY, items);
         document.getElementById('resumeForm').style.display = 'none';
         renderResumes();
         showToast('Resume saved!');
-      } catch(e) { showToast('Error reading file.'); }
+      } catch(e) { console.error(e); showToast('Upload failed.'); }
       finally    { btn.disabled = false; btn.textContent = 'Save Resume'; }
     });
 
@@ -334,14 +383,13 @@
       const btn = document.getElementById('btnSaveCover');
       btn.disabled = true; btn.textContent = 'Saving…';
       try {
-        const dataUrl = await readFileAsDataUrl(file);
-        const items = loadItems(COVER_KEY);
-        items.unshift({ id: newId(), title, notes, dataUrl, createdAt: new Date().toISOString() });
-        saveItems(COVER_KEY, items);
+  const upload = await uploadToSupabase(file, 'cover-letters');
+  const items = dedupByPath([{ id: upload.path, title, notes, dataUrl: upload.signedUrl || '', path: upload.path, createdAt: new Date().toISOString() }, ...loadItems(COVER_KEY)]);
+  saveItems(COVER_KEY, items);
         document.getElementById('coverForm').style.display = 'none';
         renderCovers();
         showToast('Cover letter saved!');
-      } catch(e) { showToast('Error reading file.'); }
+      } catch(e) { console.error(e); showToast('Upload failed.'); }
       finally    { btn.disabled = false; btn.textContent = 'Save Cover Letter'; }
     });
 
@@ -383,8 +431,8 @@
             </div>
           </label>
           <div class="profile-modal-footer">
-            <button class="btn btn-primary" id="editSaveBtn">Save Changes</button>
-            <button class="btn btn-outline" id="editCancelBtn">Cancel</button>
+            <button class="btn btn-primary" type="button" id="editSaveBtn">Save Changes</button>
+            <button class="btn btn-outline" type="button" id="editCancelBtn">Cancel</button>
           </div>
         </div>`;
       document.body.appendChild(overlay);
@@ -404,8 +452,12 @@
         if (newFile) {
           const btn = overlay.querySelector('#editSaveBtn');
           btn.disabled = true; btn.textContent = 'Saving…';
-          try { item.dataUrl = await readFileAsDataUrl(newFile); }
-          catch(e) { showToast('Error reading file.'); btn.disabled=false; btn.textContent='Save Changes'; return; }
+          try {
+            const upload = await uploadToSupabase(newFile, type === 'resume' ? 'resumes' : 'cover-letters');
+            item.dataUrl = upload.signedUrl || '';
+            item.path    = upload.path;
+          }
+          catch(e) { console.error(e); showToast('Upload failed.'); btn.disabled=false; btn.textContent='Save Changes'; return; }
         }
         item.title = newTitle;
         item.notes = newNotes;
@@ -452,9 +504,13 @@
       window.location.href = '/dashboard';
     };
 
-    // ─── Initial render ────────────────────────────────────────────────
-    renderResumes();
-    renderCovers();
+    // ─── Initial render + sync from Supabase ──────────────────────────
+    (async () => {
+      await syncFromSupabase('resumes', RESUME_KEY);
+      await syncFromSupabase('cover-letters', COVER_KEY);
+      renderResumes();
+      renderCovers();
+    })();
   })();
   </script>
 </body>

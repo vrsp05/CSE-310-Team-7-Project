@@ -114,13 +114,14 @@ async function requireAuth(req, res, next) {
         if (tokenCookie) token = tokenCookie.split('=')[1];
     }
 
-    if (!token) return res.redirect('/?error=Please+login+first');
+  if (!token) return res.redirect('/?error=Please+login+first');
 
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+  const { data: { user }, error } = await supabase.auth.getUser(token);
     if (error || !user) return res.redirect('/?error=Session+expired');
 
-    res.locals.user = { ...user, username: user.user_metadata?.display_name || user.email };
-    req.user = res.locals.user;
+  res.locals.user = { ...user, username: user.user_metadata?.display_name || user.email };
+  req.user = res.locals.user;
+  req.authToken = token;
     next();
 }
 
@@ -129,6 +130,13 @@ async function requireAuth(req, res, next) {
 // ----------------------
 app.post('/api/storage/upload', requireAuth, upload.single('file'), async (req, res) => {
     try {
+    // Build a per-request Supabase client with the user's JWT so Storage sees their identity
+    const supaUser = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_ANON_KEY,
+      { global: { headers: { Authorization: `Bearer ${req.authToken}` } } }
+    );
+
         const file = req.file;
         const bucket = req.body.bucket; // 'resumes' or 'cover-letters'
 
@@ -159,7 +167,7 @@ app.post('/api/storage/upload', requireAuth, upload.single('file'), async (req, 
 
         // 1. Upload to Storage with a unique timestamped name
         const uniqueName = `${Date.now()}_${file.originalname}`;
-        const { data: storageData, error: storageError } = await supabase.storage
+    const { data: storageData, error: storageError } = await supaUser.storage
             .from(bucket)
             .upload(`${user.id}/${uniqueName}`, file.buffer, {
                 contentType: file.mimetype,
@@ -168,35 +176,65 @@ app.post('/api/storage/upload', requireAuth, upload.single('file'), async (req, 
 
         if (storageError) throw storageError;
 
-        console.log(`[FILE SAVED] Path: ${storageData.path}`);
+    console.log(`[FILE SAVED] Path: ${storageData.path}`);
 
-        // 2. Prepare the database entry
-        const entry = {
-            user_id: user.id,
-            resume_text: bucket === 'resumes' ? storageData.path : null,
-            cover_letter_text: bucket === 'cover-letters' ? storageData.path : null
-        };
-
-        // 3. Insert into the 'applications' table
-        const { data: dbData, error: dbError } = await supabase
-            .from('applications')
-            .insert([entry])
-            .select();
-
-        if (dbError) {
-            console.error("Database Error:", dbError.message);
-            return res.status(400).json({ error: "DB Error: " + dbError.message });
-        }
+        // Return success for storage only (RLS-safe) plus a signed URL for immediate use
+        const { data: signed } = await supaUser.storage
+          .from(bucket)
+          .createSignedUrl(storageData.path, 3600);
 
         res.json({ 
-            message: "Success! File stored and DB row created.", 
-            path: storageData.path 
-        });
+      message: "Success! File stored.", 
+      path: storageData.path,
+      signedUrl: signed?.signedUrl || null
+    });
 
     } catch (err) {
         console.error("SERVER ERROR:", err.message);
         res.status(500).json({ error: err.message });
     }
+});
+
+// List saved files for this user in a bucket (returns signed URLs)
+app.get('/api/storage/list', requireAuth, async (req, res) => {
+  try {
+    const bucket = req.query.bucket;
+    const allowedBuckets = ['resumes', 'cover-letters'];
+    if (!allowedBuckets.includes(bucket)) {
+      return res.status(400).json({ error: 'Invalid bucket' });
+    }
+
+    const supaUser = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_ANON_KEY,
+      { global: { headers: { Authorization: `Bearer ${req.authToken}` } } }
+    );
+
+    const userId = req.user.id;
+    const { data: fileList, error: listError } = await supaUser.storage
+      .from(bucket)
+      .list(userId, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+
+    if (listError) throw listError;
+    if (!fileList?.length) return res.json({ files: [] });
+
+    const files = await Promise.all(
+      fileList
+        .filter(f => f.name !== '.emptyFolderPlaceholder')
+        .map(async f => {
+          const path = `${userId}/${f.name}`;
+          const { data: urlData } = await supaUser.storage
+            .from(bucket)
+            .createSignedUrl(path, 3600);
+          return { name: path, url: urlData?.signedUrl || '' };
+        })
+    );
+
+    res.json({ files });
+  } catch (err) {
+    console.error('[LIST ERROR]', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 import helmet from 'helmet';
