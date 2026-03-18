@@ -1,3 +1,11 @@
+/* =============================================================
+   styles.css — Main stylesheet for AI JobCoach
+   Covers: base reset, login/register forms, dashboard layout,
+   upload panels, tabs, score ring, keyword lists, analysis page,
+   interview page, and responsive breakpoints.
+   Header styles live in header.css; profile styles in profile.css.
+============================================================= */
+
 /* =========================
    Base / Reset
 ========================= */

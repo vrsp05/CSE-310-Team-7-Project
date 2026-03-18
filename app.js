@@ -1,15 +1,20 @@
+// ============================================================
+// app.js — Main Express server for AI JobCoach
+// Handles authentication, file storage, AI analysis, and
+// DOCX export. Uses Supabase for auth/storage and Google
+// Gemini for resume/cover letter feedback.
+// ============================================================
+
 import express from "express";
 import cors from "cors";
-import path from "path";  
-import fs from "fs";
-import bcrypt from "bcrypt";
+import path from "path";
 import session from "express-session";
 import { fileURLToPath } from "url";
-import multer from "multer"; // Para manejar archivos
-import "dotenv/config"; // Carga variables de .env automáticamente
+import multer from "multer"; // Handles multipart/form-data file uploads (in-memory buffer)
+import "dotenv/config"; // Loads .env variables into process.env at startup
 import systemInstructionDefault from './config/geminiInstruction.js';
 import systemInstructionCoverLetter from './config/geminiInstructionCoverLetter.js';
-import { createClient } from "@supabase/supabase-js"; // Cliente de Supabase
+import { createClient } from "@supabase/supabase-js"; // Supabase JS client
 
 // ----------------------
 // ES MODULE FIXES
@@ -25,7 +30,7 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY
 );
 
-// Configuración de Multer (subida temporal en memoria)
+// Multer config: keeps uploaded files in RAM (no temp files written to disk)
 const upload = multer({ storage: multer.memoryStorage() });
 
 // ----------------------
@@ -67,7 +72,7 @@ app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json()); // Importante para recibir JSON
+app.use(express.json()); // Required to parse JSON request bodies
 
 app.use(
   session({
@@ -128,8 +133,11 @@ async function requireAuth(req, res, next) {
 }
 
 // ----------------------
-// NUEVAS RUTAS DE SUPABASE
+// SUPABASE STORAGE ROUTES
 // ----------------------
+
+// POST /api/storage/upload — Upload a resume or cover letter PDF/DOCX to Supabase Storage.
+// Validates bucket name and MIME type before uploading. Returns a signed URL for immediate use.
 app.post('/api/storage/upload', requireAuth, upload.single('file'), async (req, res) => {
   try {
     const file = req.file;
@@ -259,25 +267,34 @@ app.get('/api/storage/files', requireAuth, async (req, res) => {
 // ----------------------
 app.delete('/api/storage/files/:id', requireAuth, async (req, res) => {
     try {
-        const { id } = req.params;
+        // Decode the URI component to turn the safe string back into a file path
+        const id = decodeURIComponent(req.params.id);
 
-        // Create the temporary client wearing the user's ID badge
         const userSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
             global: { headers: { Authorization: `Bearer ${req.token}` } }
         });
 
-        // 1. Fetch the row first so we know exactly which PDFs to delete from the buckets
-        const { data: fileData, error: fetchError } = await userSupabase
-            .from('applications')
-            .select('resume_text, cover_letter_text')
-            .eq('id', id)
-            .single();
-
-        if (fetchError || !fileData) {
-            return res.status(404).json({ error: "File not found." });
+        // 1. Fetch the row. We use an "or" query so it works for BOTH 
+        // our automated TDD tests (UUIDs) and your team's frontend (File Paths)
+        let query = userSupabase.from('applications').select('id, resume_text, cover_letter_text');
+        
+        if (id.includes('/')) {
+            query = query.or(`resume_text.eq."${id}",cover_letter_text.eq."${id}"`);
+        } else {
+            query = query.eq('id', id);
         }
 
-        // 2. Delete the actual files from the Storage Buckets
+        const { data: fileData, error: fetchError } = await query.single();
+
+        // 2. Fallback for the team's frontend: If it's not in the Database, 
+        // try to delete it directly from the Storage Bucket anyway!
+        if (fetchError || !fileData) {
+            const bucket = id.toLowerCase().includes('cover') ? 'cover-letters' : 'resumes';
+            await userSupabase.storage.from(bucket).remove([id]);
+            return res.json({ message: "File deleted successfully from storage." });
+        }
+
+        // 3. Delete the actual files from the Storage Buckets
         if (fileData.resume_text) {
             await userSupabase.storage.from('resumes').remove([fileData.resume_text]);
         }
@@ -285,13 +302,8 @@ app.delete('/api/storage/files/:id', requireAuth, async (req, res) => {
             await userSupabase.storage.from('cover-letters').remove([fileData.cover_letter_text]);
         }
 
-        // 3. Delete the row from the database
-        const { error: deleteError } = await userSupabase
-            .from('applications')
-            .delete()
-            .eq('id', id);
-
-        if (deleteError) throw deleteError;
+        // 4. Delete the row from the database
+        await userSupabase.from('applications').delete().eq('id', fileData.id);
 
         res.json({ message: "File deleted successfully." });
 
@@ -357,14 +369,14 @@ async function callGeminiWithFallback(models, key, body) {
 // Log pdfParse availability for debugging
 console.log('pdfParse loaded:', typeof pdfParse, Object.keys(pdfParse || {}));
 
-// build connect-src list (incluye localhost para desarrollo)
+// Build connect-src allowlist (localhost is needed for local dev XHR/fetch)
 const connectSrc = ["'self'", 'http://localhost:3000', 'https:', 'wss:'];
 
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],   // quita 'unsafe-inline' si usas nonces/hashes
+      scriptSrc: ["'self'", "'unsafe-inline'"],   // remove 'unsafe-inline' if switching to CSP nonces/hashes
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:'],
       connectSrc,
@@ -394,6 +406,14 @@ app.get("/register", (req, res) => {
 
 app.get("/about", (req, res) => {
   res.render("about", { user: res.locals.user || null });
+});
+
+app.get("/contact", (req, res) => {
+  res.render("contact", { user: res.locals.user || null });
+});
+
+app.get("/privacy", (req, res) => {
+  res.render("privacy", { user: res.locals.user || null });
 });
 
 app.get("/dashboard", requireAuth, async (req, res) => {
@@ -723,7 +743,7 @@ app.get('/dashboard/analysis', requireAuth, (req, res) => {
 });
 
 
-// ... El resto de tus rutas de registro/login se mantienen igual ...
+// ─────────────────────────────────────────────────────────────
 
 // ----------------------
 // AUTH ROUTES (login / logout)

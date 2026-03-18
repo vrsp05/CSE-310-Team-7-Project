@@ -1,5 +1,14 @@
+/**
+ * tests/auth.test.js
+ * Authentication edge-case tests using Supertest + Jest.
+ * These tests hit the real Supabase Auth API (no mocks) to verify
+ * that the /api/auth/signup endpoint correctly rejects bad input:
+ *   A — Missing password
+ *   B — Invalid email format
+ *   C — Weak (too short) password
+ */
 import request from 'supertest';
-import app from '../app.js'; 
+import app from '../app.js';
 
 describe('Section 1: Authentication Edge Cases', () => {
 

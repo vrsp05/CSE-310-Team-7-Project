@@ -1,3 +1,10 @@
+/* =============================================================
+   header.css — Fixed top navigation bar
+   Loaded by views/partials/header.ejs on every page.
+   Contains: fixed header shell, logo, nav links, user dropdown
+   menu (profile + sign out), and mobile responsive breakpoint.
+============================================================= */
+
 .site-header {
     position: fixed;
     top: 0;
@@ -18,6 +25,21 @@
     max-width: 1400px;
     margin: 0 auto;
     width: 100%;
+}
+
+/* ── Logo (standalone, always visible) ── */
+.header-logo {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    text-decoration: none;
+}
+
+.logo-image {
+    height: 32px;
+    width: auto;
+    display: block;
+    object-fit: contain;
 }
 
 /* ── Left: nav links ── */
@@ -50,11 +72,51 @@
     color: #000;
 }
 
-.logo-image {
-    height: 32px;
-    width: auto;
+/* Mobile-only nav items (hidden on desktop) */
+.nav-mobile-only {
+    display: none;
+}
+
+/* Desktop-only elements */
+.header-desktop-only {
+    display: flex;
+    align-items: center;
+}
+
+/* ── Hamburger button ── */
+.hamburger {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    width: 36px;
+    height: 36px;
+    padding: 6px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.hamburger span {
     display: block;
-    object-fit: contain;
+    width: 100%;
+    height: 2px;
+    background: #374151;
+    border-radius: 2px;
+    transition: transform 0.2s, opacity 0.2s;
+    transform-origin: center;
+}
+
+/* Animate to X when open */
+.hamburger.hamburger-open span:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+}
+.hamburger.hamburger-open span:nth-child(2) {
+    opacity: 0;
+}
+.hamburger.hamburger-open span:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
 }
 
 /* ── Right: username dropdown ── */
@@ -151,17 +213,61 @@
 }
 
 @media (max-width: 640px) {
-    .header-username {
+    /* Show hamburger, hide desktop nav & desktop-only elements */
+    .hamburger {
+        display: flex;
+    }
+
+    .header-desktop-only {
+        display: none !important;
+    }
+
+    /* Nav becomes a full-width dropdown panel */
+    .site-nav {
         display: none;
+        position: absolute;
+        top: 56px;
+        left: 0;
+        right: 0;
+        background: #fff;
+        border-bottom: 1px solid #e5e7eb;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        z-index: 999;
+    }
+
+    .site-nav.nav-open {
+        display: block;
     }
 
     .site-nav ul {
-        gap: 16px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0;
+        padding: 8px 0;
     }
 
-    .header-signout {
-        padding: 4px 10px;
-        font-size: 12px;
+    .site-nav ul li {
+        width: 100%;
+    }
+
+    .site-nav ul a {
+        display: block;
+        padding: 12px 24px;
+        font-size: 15px;
+        width: 100%;
+    }
+
+    .site-nav ul a:hover {
+        background: #f3f4f6;
+    }
+
+    /* Show mobile-only items (profile/signout) */
+    .nav-mobile-only {
+        display: block;
+    }
+
+    .nav-signout-link {
+        color: #dc2626 !important;
     }
 }
 

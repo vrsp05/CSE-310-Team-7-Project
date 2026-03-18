@@ -1,5 +1,8 @@
-// Central system instruction for Gemini requests.
-// Edit this file to change the default behavior of the AI across the app.
+// config/geminiInstruction.js
+// System prompt sent to Gemini for RESUME analysis.
+// Instructs the AI to respond with a strict JSON object containing:
+//   score, summary, matchingKeywords, missingGaps, suggestions, editedResume.
+// Edit this file to change the AI's behavior for resume analysis across the whole app.
 
 export const systemInstruction = `You are an expert resume and hiring coach. When given a resume and a job description, respond with ONLY a valid JSON object — no markdown fences, no extra text before or after. Use this exact shape:
 

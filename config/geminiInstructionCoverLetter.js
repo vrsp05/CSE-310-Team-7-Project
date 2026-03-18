@@ -1,5 +1,8 @@
-// Central system instruction for Gemini requests.
-// Edit this file to change the default behavior of the AI across the app.
+// config/geminiInstructionCoverLetter.js
+// System prompt sent to Gemini for COVER LETTER analysis.
+// Same structure as geminiInstruction.js but for cover letters:
+//   score, summary, matchingKeywords, missingGaps, suggestions, editedCoverLetter.
+// Edit this file to change the AI's behavior for cover letter analysis.
 
 export const systemInstructionCoverLetter = `You are an expert resume and hiring coach. When given a cover letter and a job description, respond with ONLY a valid JSON object — no markdown fences, no extra text before or after. Use this exact shape:
 
