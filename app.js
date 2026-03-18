@@ -254,6 +254,53 @@ app.get('/api/storage/files', requireAuth, async (req, res) => {
     }
 });
 
+// ----------------------
+// NEW: DELETE USER FILE ROUTE
+// ----------------------
+app.delete('/api/storage/files/:id', requireAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Create the temporary client wearing the user's ID badge
+        const userSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+            global: { headers: { Authorization: `Bearer ${req.token}` } }
+        });
+
+        // 1. Fetch the row first so we know exactly which PDFs to delete from the buckets
+        const { data: fileData, error: fetchError } = await userSupabase
+            .from('applications')
+            .select('resume_text, cover_letter_text')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !fileData) {
+            return res.status(404).json({ error: "File not found." });
+        }
+
+        // 2. Delete the actual files from the Storage Buckets
+        if (fileData.resume_text) {
+            await userSupabase.storage.from('resumes').remove([fileData.resume_text]);
+        }
+        if (fileData.cover_letter_text) {
+            await userSupabase.storage.from('cover-letters').remove([fileData.cover_letter_text]);
+        }
+
+        // 3. Delete the row from the database
+        const { error: deleteError } = await userSupabase
+            .from('applications')
+            .delete()
+            .eq('id', id);
+
+        if (deleteError) throw deleteError;
+
+        res.json({ message: "File deleted successfully." });
+
+    } catch (err) {
+        console.error("Delete File Error:", err.message);
+        res.status(500).json({ error: "Failed to delete the file." });
+    }
+});
+
 import helmet from 'helmet';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
