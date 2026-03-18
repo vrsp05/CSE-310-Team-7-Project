@@ -1,3 +1,10 @@
+/* =============================================================
+   header.css — Fixed top navigation bar
+   Loaded by views/partials/header.ejs on every page.
+   Contains: fixed header shell, logo, nav links, user dropdown
+   menu (profile + sign out), and mobile responsive breakpoint.
+============================================================= */
+
 .site-header {
     position: fixed;
     top: 0;

@@ -1,3 +1,13 @@
+<!--
+  views/dashboard/analysis.ejs - AI Analysis Results page (requires auth)
+  Reads the aiResult object injected by the server (from session) and renders:
+    - A circular match score ring (color-coded red/orange/green)
+    - A summary paragraph and list of improvement suggestions
+    - Two keyword columns: matching keywords and missing gaps
+    - An editable textarea with the AI-improved resume or cover letter
+    - Buttons to download as DOCX, print, or save to profile (localStorage)
+  AI data is passed via a <script type="application/json"> tag to avoid XSS.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>

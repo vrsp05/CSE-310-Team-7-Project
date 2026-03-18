@@ -1,5 +1,15 @@
+/**
+ * tests/upload.test.js
+ * File upload edge-case tests for POST /api/storage/upload using Supertest + Jest.
+ * beforeAll logs in with a shared test account to obtain an auth cookie.
+ * Tests cover:
+ *   D — Unauthenticated upload is blocked (302 redirect)
+ *   E — Authenticated request with no file attached returns 400
+ *   F — Non-PDF/DOCX file type is rejected (MIME validation)
+ *   G — Invalid bucket name is rejected before reaching Supabase
+ */
 import request from 'supertest';
-import app from '../app.js'; 
+import app from '../app.js';
 
 describe('Section 2: File Upload Edge Cases', () => {
     let authCookie = '';

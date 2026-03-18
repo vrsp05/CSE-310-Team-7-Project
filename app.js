@@ -1,15 +1,20 @@
+// ============================================================
+// app.js — Main Express server for AI JobCoach
+// Handles authentication, file storage, AI analysis, and
+// DOCX export. Uses Supabase for auth/storage and Google
+// Gemini for resume/cover letter feedback.
+// ============================================================
+
 import express from "express";
 import cors from "cors";
-import path from "path";  
-import fs from "fs";
-import bcrypt from "bcrypt";
+import path from "path";
 import session from "express-session";
 import { fileURLToPath } from "url";
-import multer from "multer"; // Para manejar archivos
-import "dotenv/config"; // Carga variables de .env automáticamente
+import multer from "multer"; // Handles multipart/form-data file uploads (in-memory buffer)
+import "dotenv/config"; // Loads .env variables into process.env at startup
 import systemInstructionDefault from './config/geminiInstruction.js';
 import systemInstructionCoverLetter from './config/geminiInstructionCoverLetter.js';
-import { createClient } from "@supabase/supabase-js"; // Cliente de Supabase
+import { createClient } from "@supabase/supabase-js"; // Supabase JS client
 
 // ----------------------
 // ES MODULE FIXES
@@ -25,7 +30,7 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY
 );
 
-// Configuración de Multer (subida temporal en memoria)
+// Multer config: keeps uploaded files in RAM (no temp files written to disk)
 const upload = multer({ storage: multer.memoryStorage() });
 
 // ----------------------
@@ -67,7 +72,7 @@ app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json()); // Importante para recibir JSON
+app.use(express.json()); // Required to parse JSON request bodies
 
 app.use(
   session({
@@ -128,8 +133,11 @@ async function requireAuth(req, res, next) {
 }
 
 // ----------------------
-// NUEVAS RUTAS DE SUPABASE
+// SUPABASE STORAGE ROUTES
 // ----------------------
+
+// POST /api/storage/upload — Upload a resume or cover letter PDF/DOCX to Supabase Storage.
+// Validates bucket name and MIME type before uploading. Returns a signed URL for immediate use.
 app.post('/api/storage/upload', requireAuth, upload.single('file'), async (req, res) => {
   try {
     const file = req.file;
@@ -310,14 +318,14 @@ async function callGeminiWithFallback(models, key, body) {
 // Log pdfParse availability for debugging
 console.log('pdfParse loaded:', typeof pdfParse, Object.keys(pdfParse || {}));
 
-// build connect-src list (incluye localhost para desarrollo)
+// Build connect-src allowlist (localhost is needed for local dev XHR/fetch)
 const connectSrc = ["'self'", 'http://localhost:3000', 'https:', 'wss:'];
 
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],   // quita 'unsafe-inline' si usas nonces/hashes
+      scriptSrc: ["'self'", "'unsafe-inline'"],   // remove 'unsafe-inline' if switching to CSP nonces/hashes
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:'],
       connectSrc,
@@ -676,7 +684,7 @@ app.get('/dashboard/analysis', requireAuth, (req, res) => {
 });
 
 
-// ... El resto de tus rutas de registro/login se mantienen igual ...
+// ─────────────────────────────────────────────────────────────
 
 // ----------------------
 // AUTH ROUTES (login / logout)

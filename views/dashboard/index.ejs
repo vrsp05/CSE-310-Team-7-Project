@@ -1,3 +1,14 @@
+<!--
+  views/dashboard/index.ejs - Main dashboard (requires auth)
+  Users paste a job description on the left and upload a Resume or
+  Cover Letter (PDF/DOCX) on the right using the tabbed panel.
+  On upload, the file is saved to Supabase Storage automatically.
+  Clicking ANALYZE sends the file to POST /generate-file, which
+  calls Gemini and stores the result in session, then redirects
+  to /dashboard/analysis.
+  Previously saved files are loaded into the picker dropdowns
+  via GET /api/storage/list so users can re-analyze old files.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>

@@ -1,3 +1,9 @@
+<!--
+  views/auth/register.ejs - Registration page (public, no auth required)
+  Collects username, email, and password, then POSTs to /api/auth/signup
+  (Supabase Auth). On success redirects to login page (/).
+  Includes inline email format validation via the browser Constraint API.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,7 +14,7 @@
 </head>
 <body>
     <%- include('../partials/header') %>
-    
+
     <div id="title">
         <h1>Welcome to AI JobCoach</h1>
         <p>Your personal assistant for job hunting powered by AI.</p>

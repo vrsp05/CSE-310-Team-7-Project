@@ -1,3 +1,14 @@
+<!--
+  views/dashboard/profile.ejs - User Profile page (requires auth)
+  Displays two tabs: Saved Resumes and Saved Cover Letters.
+  Files are stored in Supabase Storage and synced into localStorage
+  on page load so they persist across sessions.
+  Users can upload new files via drag-and-drop or file picker,
+  edit titles/notes, preview PDFs in a modal, and send files
+  directly to the analysis dashboard.
+  All list rendering (renderResumes / renderCovers) pulls from
+  localStorage; syncFromSupabase() refreshes that cache from the cloud.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
