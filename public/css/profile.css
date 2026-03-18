@@ -1,5 +1,8 @@
 /* ===================================================
-   Profile Page Styles
+   profile.css — Styles for views/dashboard/profile.ejs
+   Contains: tab bar, upload form, card list, modal
+   overlay (edit + PDF preview), toast notification,
+   drag-and-drop file zone, and responsive breakpoints.
 =================================================== */
 
 /* ── Tab bar ──────────────────────────────────────── */

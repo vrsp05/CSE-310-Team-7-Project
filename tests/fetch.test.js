@@ -1,5 +1,17 @@
+/**
+ * tests/fetch.test.js
+ * Tests for the GET /api/storage/files endpoint using Supertest + Jest.
+ * beforeAll logs in with a shared test account to obtain an auth cookie.
+ * Tests cover:
+ *   1 — Unauthenticated request is redirected (302)
+ *   2 — Authenticated request returns { files: [] } or populated array
+ *   3 — All returned files belong to the logged-in user (data isolation)
+ *   4 — Each file row has the expected database columns
+ *   5 — (skipped) Empty files array for a brand-new user
+ *   6 — Unusual filenames survive the Supabase storage round-trip
+ */
 import request from 'supertest';
-import app from '../app.js'; 
+import app from '../app.js';
 
 describe('Fetch Files API Tests', () => {
     let authCookie = '';

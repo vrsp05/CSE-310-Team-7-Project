@@ -1,15 +1,20 @@
+// ============================================================
+// app.js — Main Express server for AI JobCoach
+// Handles authentication, file storage, AI analysis, and
+// DOCX export. Uses Supabase for auth/storage and Google
+// Gemini for resume/cover letter feedback.
+// ============================================================
+
 import express from "express";
 import cors from "cors";
-import path from "path";  
-import fs from "fs";
-import bcrypt from "bcrypt";
+import path from "path";
 import session from "express-session";
 import { fileURLToPath } from "url";
-import multer from "multer"; // Para manejar archivos
-import "dotenv/config"; // Carga variables de .env automáticamente
+import multer from "multer"; // Handles multipart/form-data file uploads (in-memory buffer)
+import "dotenv/config"; // Loads .env variables into process.env at startup
 import systemInstructionDefault from './config/geminiInstruction.js';
 import systemInstructionCoverLetter from './config/geminiInstructionCoverLetter.js';
-import { createClient } from "@supabase/supabase-js"; // Cliente de Supabase
+import { createClient } from "@supabase/supabase-js"; // Supabase JS client
 
 // ----------------------
 // ES MODULE FIXES
@@ -25,7 +30,7 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY
 );
 
-// Configuración de Multer (subida temporal en memoria)
+// Multer config: keeps uploaded files in RAM (no temp files written to disk)
 const upload = multer({ storage: multer.memoryStorage() });
 
 // ----------------------
@@ -67,7 +72,7 @@ app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json()); // Importante para recibir JSON
+app.use(express.json()); // Required to parse JSON request bodies
 
 app.use(
   session({
@@ -114,85 +119,118 @@ async function requireAuth(req, res, next) {
         if (tokenCookie) token = tokenCookie.split('=')[1];
     }
 
-    if (!token) return res.redirect('/?error=Please+login+first');
+  if (!token) return res.redirect('/?error=Please+login+first');
 
-const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) return res.redirect('/?error=Session+expired');
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) return res.redirect('/?error=Session+expired');
 
-    // --- NEW: THE USERNAME TRANSLATOR ---
-    // Make Supabase's data match what your team's EJS templates expect!
-    user.username = user.user_metadata?.display_name || user.email.split('@')[0];
-
-    res.locals.user = user; 
-    req.user = user;
-    req.token = token; 
-    next();
+  const normalized = { ...user, username: user.user_metadata?.display_name || user.email.split('@')[0] };
+  res.locals.user = normalized;
+  req.user = normalized;
+  req.authToken = token;
+  req.token = token;
+  next();
 }
 
 // ----------------------
-// NUEVAS RUTAS DE SUPABASE
+// SUPABASE STORAGE ROUTES
 // ----------------------
+
+// POST /api/storage/upload — Upload a resume or cover letter PDF/DOCX to Supabase Storage.
+// Validates bucket name and MIME type before uploading. Returns a signed URL for immediate use.
 app.post('/api/storage/upload', requireAuth, upload.single('file'), async (req, res) => {
-try {
-        const file = req.file;
-        const bucket = req.body.bucket; 
-        const user = req.user;
+  try {
+    const file = req.file;
+    const bucket = req.body.bucket; 
+    const user = req.user;
 
-        if (!file) return res.status(400).json({ error: "No file provided" });
+    if (!file) return res.status(400).json({ error: "No file provided" });
 
-        // --- SECURITY VALIDATION ---
-        const allowedBuckets = ['resumes', 'cover-letters'];
-        if (!allowedBuckets.includes(bucket)) return res.status(400).json({ error: "Invalid storage bucket." });
+    // SECURITY VALIDATION
+    const allowedBuckets = ['resumes', 'cover-letters'];
+    if (!allowedBuckets.includes(bucket)) return res.status(400).json({ error: "Invalid storage bucket." });
 
-        const allowedMimeTypes = [
-            'application/pdf', 
-            'application/msword', 
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        ];
-        if (!allowedMimeTypes.includes(file.mimetype)) return res.status(400).json({ error: "Invalid file type." });
-        // -------------------------------
+    const allowedMimeTypes = [
+      'application/pdf', 
+      'application/msword', 
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    if (!allowedMimeTypes.includes(file.mimetype)) return res.status(400).json({ error: "Invalid file type." });
 
-        // --- NEW: THE ID BADGE ---
-        // Create a temporary Supabase client that wears THIS user's exact token. 
-        // This proves to the Vault that the user is authorized!
-        const userSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
-            global: { headers: { Authorization: `Bearer ${req.token}` } }
-        });
+    // User-scoped Supabase client (uses their JWT)
+    const userSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: `Bearer ${req.token || req.authToken}` } }
+    });
 
-        // 1. Upload to Storage using the authorized user client
-        const uniqueName = `${Date.now()}_${file.originalname}`;
-        const { data: storageData, error: storageError } = await userSupabase.storage
-            .from(bucket)
-            .upload(`${user.id}/${uniqueName}`, file.buffer, {
-                contentType: file.mimetype,
-                upsert: true
-            });
+    // Upload to Storage
+    const uniqueName = `${Date.now()}_${file.originalname}`;
+    const { data: storageData, error: storageError } = await userSupabase.storage
+      .from(bucket)
+      .upload(`${user.id}/${uniqueName}`, file.buffer, {
+        contentType: file.mimetype,
+        upsert: true
+      });
 
-        if (storageError) throw storageError;
+    if (storageError) throw storageError;
+    console.log(`[FILE SAVED] Path: ${storageData.path}`);
 
-        console.log(`[FILE SAVED] Path: ${storageData.path}`);
+    // Signed URL for immediate use (no DB insert to avoid RLS)
+    const { data: signed } = await userSupabase.storage
+      .from(bucket)
+      .createSignedUrl(storageData.path, 3600);
 
-        // 2. Prepare the database entry
-        const entry = {
-            user_id: user.id,
-            resume_text: bucket === 'resumes' ? storageData.path : null,
-            cover_letter_text: bucket === 'cover-letters' ? storageData.path : null
-        };
+    return res.json({ 
+      message: "Success! File stored.", 
+      path: storageData.path,
+      signedUrl: signed?.signedUrl || null
+    });
 
-        // 3. Insert into the 'applications' table using the authorized user client
-        const { data: dbData, error: dbError } = await userSupabase
-            .from('applications')
-            .insert([entry])
-            .select();
+  } catch (err) {
+    console.error("SERVER ERROR:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
-        if (dbError) throw dbError;
-
-        res.json({ message: "Success! File stored and DB row created.", path: storageData.path });
-
-    } catch (err) {
-        console.error("SERVER ERROR:", err.message);
-        res.status(500).json({ error: err.message });
+// List saved files for this user in a bucket (returns signed URLs)
+app.get('/api/storage/list', requireAuth, async (req, res) => {
+  try {
+    const bucket = req.query.bucket;
+    const allowedBuckets = ['resumes', 'cover-letters'];
+    if (!allowedBuckets.includes(bucket)) {
+      return res.status(400).json({ error: 'Invalid bucket' });
     }
+
+    const supaUser = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_ANON_KEY,
+      { global: { headers: { Authorization: `Bearer ${req.authToken}` } } }
+    );
+
+    const userId = req.user.id;
+    const { data: fileList, error: listError } = await supaUser.storage
+      .from(bucket)
+      .list(userId, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+
+    if (listError) throw listError;
+    if (!fileList?.length) return res.json({ files: [] });
+
+    const files = await Promise.all(
+      fileList
+        .filter(f => f.name !== '.emptyFolderPlaceholder')
+        .map(async f => {
+          const path = `${userId}/${f.name}`;
+          const { data: urlData } = await supaUser.storage
+            .from(bucket)
+            .createSignedUrl(path, 3600);
+          return { name: path, url: urlData?.signedUrl || '' };
+        })
+    );
+
+    res.json({ files });
+  } catch (err) {
+    console.error('[LIST ERROR]', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ----------------------
@@ -221,6 +259,57 @@ app.get('/api/storage/files', requireAuth, async (req, res) => {
     } catch (err) {
         console.error("Fetch Files Error:", err.message);
         res.status(500).json({ error: "Failed to fetch files from the cloud." });
+    }
+});
+
+// ----------------------
+// NEW: DELETE USER FILE ROUTE
+// ----------------------
+app.delete('/api/storage/files/:id', requireAuth, async (req, res) => {
+    try {
+        // Decode the URI component to turn the safe string back into a file path
+        const id = decodeURIComponent(req.params.id);
+
+        const userSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+            global: { headers: { Authorization: `Bearer ${req.token}` } }
+        });
+
+        // 1. Fetch the row. We use an "or" query so it works for BOTH 
+        // our automated TDD tests (UUIDs) and your team's frontend (File Paths)
+        let query = userSupabase.from('applications').select('id, resume_text, cover_letter_text');
+        
+        if (id.includes('/')) {
+            query = query.or(`resume_text.eq."${id}",cover_letter_text.eq."${id}"`);
+        } else {
+            query = query.eq('id', id);
+        }
+
+        const { data: fileData, error: fetchError } = await query.single();
+
+        // 2. Fallback for the team's frontend: If it's not in the Database, 
+        // try to delete it directly from the Storage Bucket anyway!
+        if (fetchError || !fileData) {
+            const bucket = id.toLowerCase().includes('cover') ? 'cover-letters' : 'resumes';
+            await userSupabase.storage.from(bucket).remove([id]);
+            return res.json({ message: "File deleted successfully from storage." });
+        }
+
+        // 3. Delete the actual files from the Storage Buckets
+        if (fileData.resume_text) {
+            await userSupabase.storage.from('resumes').remove([fileData.resume_text]);
+        }
+        if (fileData.cover_letter_text) {
+            await userSupabase.storage.from('cover-letters').remove([fileData.cover_letter_text]);
+        }
+
+        // 4. Delete the row from the database
+        await userSupabase.from('applications').delete().eq('id', fileData.id);
+
+        res.json({ message: "File deleted successfully." });
+
+    } catch (err) {
+        console.error("Delete File Error:", err.message);
+        res.status(500).json({ error: "Failed to delete the file." });
     }
 });
 
@@ -280,14 +369,14 @@ async function callGeminiWithFallback(models, key, body) {
 // Log pdfParse availability for debugging
 console.log('pdfParse loaded:', typeof pdfParse, Object.keys(pdfParse || {}));
 
-// build connect-src list (incluye localhost para desarrollo)
+// Build connect-src allowlist (localhost is needed for local dev XHR/fetch)
 const connectSrc = ["'self'", 'http://localhost:3000', 'https:', 'wss:'];
 
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],   // quita 'unsafe-inline' si usas nonces/hashes
+      scriptSrc: ["'self'", "'unsafe-inline'"],   // remove 'unsafe-inline' if switching to CSP nonces/hashes
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:'],
       connectSrc,
@@ -317,6 +406,14 @@ app.get("/register", (req, res) => {
 
 app.get("/about", (req, res) => {
   res.render("about", { user: res.locals.user || null });
+});
+
+app.get("/contact", (req, res) => {
+  res.render("contact", { user: res.locals.user || null });
+});
+
+app.get("/privacy", (req, res) => {
+  res.render("privacy", { user: res.locals.user || null });
 });
 
 app.get("/dashboard", requireAuth, async (req, res) => {
@@ -646,7 +743,7 @@ app.get('/dashboard/analysis', requireAuth, (req, res) => {
 });
 
 
-// ... El resto de tus rutas de registro/login se mantienen igual ...
+// ─────────────────────────────────────────────────────────────
 
 // ----------------------
 // AUTH ROUTES (login / logout / reset password)

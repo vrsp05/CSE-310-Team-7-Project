@@ -1,3 +1,14 @@
+<!--
+  views/dashboard/index.ejs - Main dashboard (requires auth)
+  Users paste a job description on the left and upload a Resume or
+  Cover Letter (PDF/DOCX) on the right using the tabbed panel.
+  On upload, the file is saved to Supabase Storage automatically.
+  Clicking ANALYZE sends the file to POST /generate-file, which
+  calls Gemini and stores the result in session, then redirects
+  to /dashboard/analysis.
+  Previously saved files are loaded into the picker dropdowns
+  via GET /api/storage/list so users can re-analyze old files.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -123,142 +134,168 @@
   <%- include('../partials/footer') %>
 
  <script>
-    // ─── 1. DOM Elements ───────────────────────────────────────────────
-    const resumeFile = document.getElementById("resumeFile");
-    const coverFile  = document.getElementById("coverFile");
-    const tabButtons = document.querySelectorAll(".tab");
-    const resumeContent = document.getElementById("tab-resume");
-    const coverContent = document.getElementById("tab-cover");
+  (() => {
+    // ─── 1. DOM refs ───────────────────────────────────────────────────
+    const resumeFileInput = document.getElementById('resumeFile');
+    const coverFileInput  = document.getElementById('coverFile');
+    const tabButtons      = document.querySelectorAll('.tab');
+    const resumeContent   = document.getElementById('tab-resume');
+    const coverContent    = document.getElementById('tab-cover');
 
-    // ─── 2. "Choose File" Button Links ─────────────────────────────────
-    document.getElementById("btnChooseResume").addEventListener("click", () => resumeFile.click());
-    document.getElementById("btnChooseCover").addEventListener("click",  () => coverFile.click());
+    // ─── 2. Choose File buttons ────────────────────────────────────────
+    document.getElementById('btnChooseResume').addEventListener('click', () => resumeFileInput.click());
+    document.getElementById('btnChooseCover').addEventListener('click',  () => coverFileInput.click());
 
-    // ─── 3. NEW SUPABASE UPLOAD LOGIC ──────────────────────────────────
-    async function uploadToSupabase(fileInput, bucketName, filenameElementId) {
-        const file = fileInput.files[0];
-        const filenameDisplay = document.getElementById(filenameElementId);
-        
-        if (!file) {
-            filenameDisplay.textContent = "No file selected";
-            return;
-        }
-
-        filenameDisplay.textContent = `Uploading ${file.name}... ⏳`;
-
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('bucket', bucketName); 
-
-        try {
-            const response = await fetch('/api/storage/upload', {
-                method: 'POST',
-                body: formData
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                filenameDisplay.textContent = `✅ ${file.name} (Saved securely!)`;
-            } else {
-                filenameDisplay.textContent = `❌ Upload failed: ${data.error}`;
-                fileInput.value = ''; 
-            }
-        } catch (error) {
-            console.error("Upload Error:", error);
-            filenameDisplay.textContent = "❌ Server connection error";
-        }
-    }
-
-    // Connect Resume Input to Supabase
-    resumeFile.addEventListener("change", () => {
-        document.getElementById('resumePicker').value = '';
-        uploadToSupabase(resumeFile, 'resumes', 'resumeFilename');
-    });
-
-    // Connect Cover Letter Input to Supabase
-    coverFile.addEventListener("change", () => {
-        document.getElementById('coverPicker').value = '';
-        uploadToSupabase(coverFile, 'cover-letters', 'coverFilename');
-    });
-
-    // ─── 4. Tabs logic ─────────────────────────────────────────────────
+    // ─── 3. Tabs ───────────────────────────────────────────────────────
     tabButtons.forEach(btn => {
-      btn.addEventListener("click", () => {
-        tabButtons.forEach(b => b.classList.remove("tab-active"));
-        btn.classList.add("tab-active");
-        const target = btn.dataset.tab;
-        resumeContent.classList.toggle("tab-content-active", target === "resume");
-        coverContent.classList.toggle("tab-content-active", target === "cover");
+      btn.addEventListener('click', () => {
+        tabButtons.forEach(b => b.classList.remove('tab-active'));
+        btn.classList.add('tab-active');
+        const t = btn.dataset.tab;
+        resumeContent.classList.toggle('tab-content-active', t === 'resume');
+        coverContent.classList.toggle('tab-content-active',  t === 'cover');
       });
     });
 
-    // ─── 5. URL button ─────────────────────────────────────────────────
-    document.getElementById("btnJobUrl").addEventListener("click", () => {
-      const url = prompt("Paste the job posting URL:");
-      if (!url) return;
-      const textarea = document.getElementById("jobDescription");
-      textarea.value = `URL: ${url}\n\n` + textarea.value;
-    });
+    // ─── 4. Upload to Supabase on file change ─────────────────────────
+    async function uploadToSupabase(fileInput, bucket, filenameId) {
+      const file    = fileInput.files[0];
+      const display = document.getElementById(filenameId);
+      if (!file) { display.textContent = 'No file selected'; return; }
 
-    // ─── 6. Analyze button (Temporary Placeholder) ─────────────────────
-    document.getElementById("btnAnalyze").addEventListener("click", async () => {
-      const activeTab    = document.querySelector(".tab.tab-active")?.dataset?.tab;
-      const isCover      = activeTab === "cover";
-      const geminiOutput = document.getElementById('geminiOutput');
+      display.textContent = `Uploading ${file.name}... ⏳`;
 
-      let fileToSend = null;
-      let fieldName  = 'resumeFile';
-
-      if (isCover) {
-        fieldName = 'coverFile';
-        // check picker first
-        const pickerId = document.getElementById('coverPicker').value;
-        if (pickerId) {
-          let items = [];
-          try { items = JSON.parse(localStorage.getItem(COVER_KEY) || '[]'); } catch(e) {}
-          const saved = items.find(i => i.id === pickerId);
-          if (saved?.dataUrl) fileToSend = dataUrlToFile(saved.dataUrl, (saved.title || 'cover').replace(/[^a-z0-9]/gi,'_') + '.pdf');
-        }
-        if (!fileToSend) fileToSend = document.getElementById('coverFile')?.files?.[0] || null;
-      } else {
-        fileToSend = getResumeFile();
-      }
-
-      const jd = document.getElementById('jobDescription')?.value || '';
-
-      if (!fileToSend) {
-        geminiOutput.textContent = isCover
-          ? 'Please choose a cover letter file (PDF or DOCX), or select one from your saved cover letters.'
-          : 'Please choose a resume file (PDF or DOCX), or select one from your saved resumes.';
-        return;
-      }
-
-      geminiOutput.textContent = 'Uploading and sending to AI...';
-      document.getElementById('btnAnalyze').disabled = true;
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('bucket', bucket);
 
       try {
+        const res  = await fetch('/api/storage/upload', { method: 'POST', credentials: 'same-origin', body: fd });
+        const data = await res.json();
+        if (res.ok) {
+          display.textContent = `✅ ${file.name} (Saved!)`;
+        } else {
+          display.textContent = `❌ Upload failed: ${data.error}`;
+          fileInput.value = '';
+        }
+      } catch(e) {
+        display.textContent = '❌ Server connection error';
+      }
+    }
+
+    resumeFileInput.addEventListener('change', () => {
+      document.getElementById('resumePicker').value = '';
+      uploadToSupabase(resumeFileInput, 'resumes', 'resumeFilename');
+    });
+    coverFileInput.addEventListener('change', () => {
+      document.getElementById('coverPicker').value = '';
+      uploadToSupabase(coverFileInput, 'cover-letters', 'coverFilename');
+    });
+
+    // ─── 5. Load saved files from Supabase into pickers ───────────────
+    async function loadPicker(bucket, pickerId, pickerAreaId) {
+      try {
+        const res  = await fetch(`/api/storage/list?bucket=${bucket}`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok || !data.files?.length) return;
+
+        const area   = document.getElementById(pickerAreaId);
+        const picker = document.getElementById(pickerId);
+        // reset options to default
+        picker.innerHTML = '<option value="">— Upload a new file —</option>';
+        area.style.display = '';
+
+        // Deduplicate by base filename (keep newest) to avoid showing many copies
+        // dedup by path
+        const byPath = new Map();
+        data.files.forEach(f => {
+          const created = f.created_at ? new Date(f.created_at).toISOString() : new Date().toISOString();
+          const existing = byPath.get(f.name);
+          if (!existing || created > existing.created_at) {
+            byPath.set(f.name, { ...f, created_at: created });
+          }
+        });
+
+        Array.from(byPath.values())
+          .sort((a,b) => (b.created_at||'').localeCompare(a.created_at||''))
+          .forEach(f => {
+            const base = f.name.replace(/^[^\/]+\//, '').replace(/^\d+_/, '');
+            const opt        = document.createElement('option');
+            opt.value        = f.url;
+            opt.dataset.name = f.name;
+            opt.textContent  = base || f.name.replace(/^[^\/]+\//, '');
+            picker.appendChild(opt);
+          });
+      } catch(e) { console.warn('Picker load failed:', e); }
+    }
+
+    loadPicker('resumes',       'resumePicker', 'resumePickerArea');
+    loadPicker('cover-letters', 'coverPicker',  'coverPickerArea');
+
+    // ─── 6. Fetch signed URL → File object ────────────────────────────
+    async function fetchFileFromUrl(signedUrl, filename) {
+      const res  = await fetch(signedUrl);
+      const blob = await res.blob();
+      return new File([blob], filename, { type: blob.type });
+    }
+
+    // ─── 7. Analyze button ─────────────────────────────────────────────
+    document.getElementById('btnAnalyze').addEventListener('click', async () => {
+      const activeTab    = document.querySelector('.tab.tab-active')?.dataset?.tab;
+      const isCover      = activeTab === 'cover';
+      const geminiOutput = document.getElementById('geminiOutput');
+      const fieldName    = isCover ? 'coverFile'   : 'resumeFile';
+      const picker       = document.getElementById(isCover ? 'coverPicker'  : 'resumePicker');
+      const fileInput    = isCover ? coverFileInput : resumeFileInput;
+      const jd           = document.getElementById('jobDescription').value || '';
+
+      geminiOutput.textContent = 'Preparing file...';
+      document.getElementById('btnAnalyze').disabled = true;
+
+      let fileToSend = null;
+      try {
+        if (picker.value) {
+          const rawName  = picker.selectedOptions[0]?.dataset?.name || 'file.pdf';
+          const filename = rawName.replace(/^[^/]+\/\d+_/, '');
+          geminiOutput.textContent = 'Fetching saved file...';
+          fileToSend = await fetchFileFromUrl(picker.value, filename);
+        } else {
+          fileToSend = fileInput.files[0] || null;
+        }
+
+        if (!fileToSend) {
+          geminiOutput.textContent = isCover
+            ? 'Please choose a cover letter (PDF or DOCX) or select a saved one.'
+            : 'Please choose a resume (PDF or DOCX) or select a saved one.';
+          document.getElementById('btnAnalyze').disabled = false;
+          return;
+        }
+
+        geminiOutput.textContent = 'Sending to AI...';
         const fd = new FormData();
         fd.append(fieldName, fileToSend);
         fd.append('jobDescription', jd);
 
         const resp = await fetch('/generate-file', { method: 'POST', credentials: 'same-origin', body: fd });
         const data = await resp.json();
+
         if (!resp.ok) {
           geminiOutput.textContent = 'AI error: ' + (data?.error || JSON.stringify(data));
           document.getElementById('btnAnalyze').disabled = false;
           return;
         }
 
-        geminiOutput.textContent = 'AI analysis complete — redirecting to Analysis page...';
+        geminiOutput.textContent = 'AI analysis complete — redirecting...';
         setTimeout(() => { window.location.href = '/dashboard/analysis'; }, 600);
-      } catch (err) {
-        console.error('Network or server error', err);
+
+      } catch(err) {
+        console.error(err);
         geminiOutput.textContent = 'Network or server error. Check console.';
         document.getElementById('btnAnalyze').disabled = false;
       }
     });
 
+  })();
   </script>
 </body>
 </html>

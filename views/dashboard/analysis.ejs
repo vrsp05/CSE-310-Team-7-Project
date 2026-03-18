@@ -1,3 +1,13 @@
+<!--
+  views/dashboard/analysis.ejs - AI Analysis Results page (requires auth)
+  Reads the aiResult object injected by the server (from session) and renders:
+    - A circular match score ring (color-coded red/orange/green)
+    - A summary paragraph and list of improvement suggestions
+    - Two keyword columns: matching keywords and missing gaps
+    - An editable textarea with the AI-improved resume or cover letter
+    - Buttons to download as DOCX, print, or save to profile (localStorage)
+  AI data is passed via a <script type="application/json"> tag to avoid XSS.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -179,7 +189,13 @@
 
       // ── 3. Suggested (edited) resume ────────────────────────────────────
       const suggestedTextEl = document.getElementById('suggestedText');
-      if (suggestedTextEl) suggestedTextEl.value = aiData.editedText || '';
+      if (suggestedTextEl) {
+        const cleaned = (aiData.editedText || '')
+          // Drop any leading "suggested resume" or "suggested cover letter" label that may have been injected
+          .replace(/^\s*suggested\s+(resume|cover\s*letter)[:\-]?\s*/i, '')
+          .trim();
+        suggestedTextEl.value = cleaned;
+      }
 
       // ── 4. Matching Keywords ─────────────────────────────────────────────
       fillList(document.getElementById('matchingKeywordsList'), aiData.matchingKeywords || []);
@@ -225,8 +241,87 @@
       // ── 8. Print ─────────────────────────────────────────────────────────
       document.getElementById('btnPrintSuggested')?.addEventListener('click', () => {
         const content = suggestedTextEl?.value || '';
+
+        // Extract first non-empty line as the name/header, rest as body
+        const lines = content.split(/\r?\n/);
+        let nameLine = '';
+        const remaining = [...lines];
+        for (let i = 0; i < remaining.length; i++) {
+          if (remaining[i].trim()) { nameLine = remaining[i].trim(); remaining[i] = ''; break; }
+        }
+        const bodyText = remaining.join('\n').trim();
+
+        const bodyHtml = renderMarkdown(bodyText);
+        const safeName = nameLine.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+        // Dynamic sizing to better fit one page: shrink font as content grows
+        const textLength = bodyText.length;
+        let baseFont = 12; // default
+        if (textLength > 4500) baseFont = 9;
+        else if (textLength > 3500) baseFont = 10;
+        else if (textLength > 2500) baseFont = 11;
+
+        const headingSize = Math.max(baseFont + 0.5, baseFont + 1);
+        const nameSize = Math.max(baseFont + 4, 14);
+
+        const html = `<!DOCTYPE html>
+          <html>
+            <head>
+              <title>${safeName || (isCover ? 'Cover Letter' : 'Resume')}</title>
+              <style>
+                :root { color-scheme: light; }
+                @page { margin: 12mm; }
+                body {
+                  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+                  font-size: ${baseFont}px;
+                  padding: 6px 10px;
+                  line-height: 1.4;
+                  color: #0f172a;
+                  background: #fff;
+                }
+                h1, h2, h3, h4 {
+                  margin: 0 0 0.35em;
+                  line-height: 1.25;
+                  font-weight: 700;
+                  text-transform: uppercase;
+                  letter-spacing: 0.25px;
+                  font-size: ${headingSize}px;
+                }
+                p { margin: 0 0 0.55em; }
+                ul { margin: 0 0 0.55em 1.25em; padding: 0; }
+                li { margin: 0.15em 0; }
+                strong { font-weight: 700; }
+                em { font-style: italic; }
+                hr { border: none; border-top: 1px solid #e5e7eb; margin: 10px 0; }
+                .name {
+                  text-align: center;
+                  font-weight: 800;
+                  font-size: ${nameSize}px;
+                  letter-spacing: 0.35px;
+                  margin: 0 0 10px;
+                  text-transform: uppercase;
+                }
+                .section-title {
+                  font-weight: 800;
+                  margin: 10px 0 4px;
+                  text-transform: uppercase;
+                  letter-spacing: 0.35px;
+                  border-bottom: 1px solid #e5e7eb;
+                  padding-bottom: 3px;
+                  font-size: 12px;
+                }
+                .content { text-align: left; }
+                .center { text-align: center; }
+              </style>
+            </head>
+            <body>
+              ${safeName ? `<div class="name">${safeName}</div>` : ''}
+              <div class="content">${bodyHtml}</div>
+            </body>
+          </html>`;
+
         const w = window.open('about:blank','_blank');
-        w.document.write('<pre style="white-space:pre-wrap;font-family:inherit;">' + content.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</pre>');
+        w.document.write(html);
         w.document.close();
         setTimeout(() => w.print(), 250);
       });

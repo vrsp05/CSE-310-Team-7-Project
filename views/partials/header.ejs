@@ -1,19 +1,34 @@
+<!--
+  views/partials/header.ejs
+  Shared navigation header included on all authenticated pages.
+  Shows the logo, nav links (Home, About), and a user dropdown
+  menu with links to Profile and Sign Out.
+-->
 <link rel="stylesheet" href="/css/header.css">
 <header class="site-header">
     <div class="header-inner">
-        <nav class="site-nav">
+        <a href="/dashboard" class="header-logo">
+            <img src="/images/logo.png" alt="AI JobCoach Logo" class="logo-image">
+        </a>
+
+        <nav class="site-nav" id="siteNav">
             <ul>
-                <a href="/dashboard">
-                    <img src="/images/logo.png" alt="AI JobCoach Logo" class="logo-image">
-                </a>
                 <li><a href="/dashboard">Home</a></li>
                 <li><a href="/about">About</a></li>
+                <li><a href="/contact">Contact</a></li>
+                <li><a href="/privacy">Privacy</a></li>
+                <% if (typeof user !== 'undefined' && user) { %>
+                    <li class="nav-mobile-only"><a href="/dashboard/profile">My Profile</a></li>
+                    <li class="nav-mobile-only"><a href="/logout" class="nav-signout-link">Sign Out</a></li>
+                <% } else { %>
+                    <li class="nav-mobile-only"><a href="/">Sign In</a></li>
+                <% } %>
             </ul>
         </nav>
 
         <div class="header-actions">
             <% if (typeof user !== 'undefined' && user) { %>
-                <div class="header-user-menu">
+                <div class="header-user-menu header-desktop-only">
                     <button class="header-username" id="userMenuBtn">
                         👤 Hello, <%= user.username %>! ▾
                     </button>
@@ -23,13 +38,20 @@
                     </div>
                 </div>
             <% } else { %>
-                <a href="/" class="header-signout">Sign In</a>
+                <a href="/" class="header-signout header-desktop-only">Sign In</a>
             <% } %>
+
+            <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu" aria-expanded="false">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
         </div>
     </div>
 </header>
 
 <script>
+    // User dropdown (desktop)
     const userMenuBtn = document.getElementById('userMenuBtn');
     const userDropdown = document.getElementById('userDropdown');
     if (userMenuBtn) {
@@ -39,6 +61,25 @@
         });
         document.addEventListener('click', () => {
             userDropdown.classList.remove('header-dropdown-open');
+        });
+    }
+
+    // Hamburger menu (mobile)
+    const hamburgerBtn = document.getElementById('hamburgerBtn');
+    const siteNav = document.getElementById('siteNav');
+    if (hamburgerBtn) {
+        hamburgerBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = siteNav.classList.toggle('nav-open');
+            hamburgerBtn.classList.toggle('hamburger-open', isOpen);
+            hamburgerBtn.setAttribute('aria-expanded', isOpen);
+        });
+        document.addEventListener('click', (e) => {
+            if (!siteNav.contains(e.target) && e.target !== hamburgerBtn) {
+                siteNav.classList.remove('nav-open');
+                hamburgerBtn.classList.remove('hamburger-open');
+                hamburgerBtn.setAttribute('aria-expanded', 'false');
+            }
         });
     }
 </script>
