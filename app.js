@@ -262,6 +262,57 @@ app.get('/api/storage/files', requireAuth, async (req, res) => {
     }
 });
 
+// ----------------------
+// NEW: DELETE USER FILE ROUTE
+// ----------------------
+app.delete('/api/storage/files/:id', requireAuth, async (req, res) => {
+    try {
+        // Decode the URI component to turn the safe string back into a file path
+        const id = decodeURIComponent(req.params.id);
+
+        const userSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+            global: { headers: { Authorization: `Bearer ${req.token}` } }
+        });
+
+        // 1. Fetch the row. We use an "or" query so it works for BOTH 
+        // our automated TDD tests (UUIDs) and your team's frontend (File Paths)
+        let query = userSupabase.from('applications').select('id, resume_text, cover_letter_text');
+        
+        if (id.includes('/')) {
+            query = query.or(`resume_text.eq."${id}",cover_letter_text.eq."${id}"`);
+        } else {
+            query = query.eq('id', id);
+        }
+
+        const { data: fileData, error: fetchError } = await query.single();
+
+        // 2. Fallback for the team's frontend: If it's not in the Database, 
+        // try to delete it directly from the Storage Bucket anyway!
+        if (fetchError || !fileData) {
+            const bucket = id.toLowerCase().includes('cover') ? 'cover-letters' : 'resumes';
+            await userSupabase.storage.from(bucket).remove([id]);
+            return res.json({ message: "File deleted successfully from storage." });
+        }
+
+        // 3. Delete the actual files from the Storage Buckets
+        if (fileData.resume_text) {
+            await userSupabase.storage.from('resumes').remove([fileData.resume_text]);
+        }
+        if (fileData.cover_letter_text) {
+            await userSupabase.storage.from('cover-letters').remove([fileData.cover_letter_text]);
+        }
+
+        // 4. Delete the row from the database
+        await userSupabase.from('applications').delete().eq('id', fileData.id);
+
+        res.json({ message: "File deleted successfully." });
+
+    } catch (err) {
+        console.error("Delete File Error:", err.message);
+        res.status(500).json({ error: "Failed to delete the file." });
+    }
+});
+
 import helmet from 'helmet';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
