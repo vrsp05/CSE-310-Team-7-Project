@@ -361,6 +361,10 @@ app.get("/contact", (req, res) => {
   res.render("contact", { user: res.locals.user || null });
 });
 
+app.get("/privacy", (req, res) => {
+  res.render("privacy", { user: res.locals.user || null });
+});
+
 app.get("/dashboard", requireAuth, async (req, res) => {
     const { data: dbItems } = await supabase.from('credentials').select('*');
     res.render("dashboard/index", { user: req.user, dbItems: dbItems || [] });
