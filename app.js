@@ -15,6 +15,8 @@ import "dotenv/config"; // Loads .env variables into process.env at startup
 import systemInstructionDefault from './config/geminiInstruction.js';
 import systemInstructionCoverLetter from './config/geminiInstructionCoverLetter.js';
 import { createClient } from "@supabase/supabase-js"; // Supabase JS client
+import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 
 // ----------------------
 // ES MODULE FIXES
@@ -29,6 +31,21 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
 );
+
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+const mailer = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT) || 587,
+  secure: process.env.SMTP_SECURE === 'true',
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
 
 // Multer config: keeps uploaded files in RAM (no temp files written to disk)
 const upload = multer({ storage: multer.memoryStorage() });
@@ -773,13 +790,110 @@ app.get('/logout', async (req, res) => {
 });
 
 app.get('/forgotPassword', (req, res) => {
-    res.render('auth/forgotPassword');
+  res.render('auth/forgotPassword', { error: null, success: null });
 });
 
-app.post('/forgotPassword', (req, res) => {
-  const{ username } = req.body;
-  // Add password reset logic here.
-  res.render('auth/forgotPassword');
+app.post('/forgotPassword', async (req, res) => {
+  const { username } = req.body;
+  const renderPage = (error, success) =>
+    res.render('auth/forgotPassword', { error, success });
+
+  if (!username || !username.trim()) return renderPage('Please enter your username.', null);
+
+  const successMsg = 'If that username exists, a reset email has been sent.';
+
+  try {
+    const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+    if (listError) throw listError;
+
+    const matchedUser = users.find(
+      (u) => u.user_metadata?.display_name?.toLowerCase() === username.trim().toLowerCase()
+    );
+
+    if (!matchedUser) return renderPage(null, successMsg);
+
+    const token = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    await supabaseAdmin
+      .from('password_reset_tokens')
+      .update({ used: true })
+      .eq('user_id', matchedUser.id)
+      .eq('used', false);
+
+    const { error: insertError } = await supabaseAdmin
+      .from('password_reset_tokens')
+      .insert([{ user_id: matchedUser.id, token, expires_at: expiresAt.toISOString() }]);
+
+    if (insertError) throw insertError;
+
+    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    await mailer.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: matchedUser.email,
+      subject: 'AI JobCoach — Password Reset Code',
+      text: `Hi ${username},\n\nYour password reset code is:\n\n  ${token}\n\nEnter it at: ${appUrl}/resetPassword\n\nExpires in 1 hour.\n\n— AI JobCoach`,
+      html: `
+        <p>Hi <strong>${username}</strong>,</p>
+        <p>Your password reset code is:</p>
+        <p style="font-size:32px;font-weight:bold;letter-spacing:8px;text-align:center;background:#f4f4f4;padding:16px;border-radius:8px;">${token}</p>
+        <p>Enter this code at the <a href="${appUrl}/resetPassword">reset password page</a>.</p>
+        <p style="color:#888;font-size:12px;">Expires in 1 hour. If you didn't request this, ignore this email.</p>
+      `,
+    });
+
+    return renderPage(null, successMsg);
+  } catch (err) {
+    console.error('[forgotPassword] Error:', err.message);
+    return renderPage('Something went wrong. Please try again.', null);
+  }
+});
+
+app.get('/resetPassword', (req, res) => {
+  res.render('auth/resetPassword', { error: null, success: null });
+});
+
+app.post('/resetPassword', async (req, res) => {
+  const { token, newPassword, confirmPassword } = req.body;
+  const renderPage = (error, success) =>
+    res.render('auth/resetPassword', { error, success });
+
+  if (!token || !newPassword || !confirmPassword) return renderPage('All fields are required.', null);
+  if (newPassword !== confirmPassword) return renderPage('Passwords do not match.', null);
+  if (newPassword.length < 6) return renderPage('Password must be at least 6 characters.', null);
+
+  try {
+    const { data: rows, error: fetchError } = await supabaseAdmin
+      .from('password_reset_tokens')
+      .select('*')
+      .eq('token', token.trim())
+      .eq('used', false)
+      .limit(1);
+
+    if (fetchError) throw fetchError;
+    if (!rows || rows.length === 0) return renderPage('Invalid or already-used code. Please request a new one.', null);
+
+    const resetRecord = rows[0];
+
+    if (new Date(resetRecord.expires_at) < new Date()) return renderPage('This code has expired. Please request a new one.', null);
+
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+      resetRecord.user_id,
+      { password: newPassword }
+    );
+
+    if (updateError) throw updateError;
+
+    await supabaseAdmin
+      .from('password_reset_tokens')
+      .update({ used: true })
+      .eq('id', resetRecord.id);
+
+    return renderPage(null, 'Password updated successfully! You can now log in.');
+  } catch (err) {
+    console.error('[resetPassword] Error:', err.message);
+    return renderPage('Something went wrong. Please try again.', null);
+  }
 });
 
 const PORT = process.env.PORT || 3000;
