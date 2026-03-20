@@ -56,6 +56,7 @@ app.use((req, res, next) => {
     "img-src 'self' data:",
     `connect-src ${connectList.join(' ')}`,
     "font-src 'self' data:",
+    "frame-src 'self' https: blob:"
   ].join('; ');
 
   res.setHeader('Content-Security-Policy', csp);
@@ -423,6 +424,7 @@ app.use(helmet({
       imgSrc: ["'self'", 'data:'],
       connectSrc,
       fontSrc: ["'self'", 'data:'],
+      frameSrc: ["'self'", "https:", "blob:"]
     }
   }
 }));
