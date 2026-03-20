@@ -413,7 +413,7 @@ app.get("/debug/me", (req, res) => {
 
 app.get("/", (req, res) => {
   if (res.locals.user) return res.redirect("/dashboard");
-  res.render("index", { error: req.query.error || null });
+  res.render("index", { error: req.query.error || null, success: req.query.success || null });
 });
 
 
@@ -810,7 +810,7 @@ app.post('/forgotPassword', async (req, res) => {
       (u) => u.user_metadata?.display_name?.toLowerCase() === username.trim().toLowerCase()
     );
 
-    if (!matchedUser) return renderPage(null, successMsg);
+  if (!matchedUser) return res.redirect('/resetPassword?sent=1');
 
     const token = crypto.randomInt(100000, 999999).toString();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
@@ -828,21 +828,31 @@ app.post('/forgotPassword', async (req, res) => {
     if (insertError) throw insertError;
 
     const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const resetLink = `${appUrl}/resetPassword?token=${token}`;
     await mailer.sendMail({
       from: process.env.SMTP_FROM || process.env.SMTP_USER,
       to: matchedUser.email,
       subject: 'AI JobCoach — Password Reset Code',
-      text: `Hi ${username},\n\nYour password reset code is:\n\n  ${token}\n\nEnter it at: ${appUrl}/resetPassword\n\nExpires in 1 hour.\n\n— AI JobCoach`,
+      text: `Hi ${username},\n\nYour password reset code is:\n\n  ${token}\n\nOpen the reset page: ${resetLink}\n(If clicking doesn’t work, copy/paste the link into your browser.)\n\nIf this wasn’t you, ignore this email.\nExpires in 1 hour.\n\n— AI JobCoach`,
       html: `
-        <p>Hi <strong>${username}</strong>,</p>
-        <p>Your password reset code is:</p>
-        <p style="font-size:32px;font-weight:bold;letter-spacing:8px;text-align:center;background:#f4f4f4;padding:16px;border-radius:8px;">${token}</p>
-        <p>Enter this code at the <a href="${appUrl}/resetPassword">reset password page</a>.</p>
-        <p style="color:#888;font-size:12px;">Expires in 1 hour. If you didn't request this, ignore this email.</p>
+      <div style="max-width:520px;margin:0 auto;border:1px solid #111;padding:18px 20px;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#0f172a;background:#fff;">
+        <div style="text-align:center;font-weight:900;font-size:18px;letter-spacing:0.4px;">AI JOBCOACH</div>
+        <p style="margin:14px 0 8px;">Hi <strong>${username}</strong>,</p>
+        <p style="margin:0 0 10px;">Here’s your password reset code:</p>
+        <div style="font-size:32px;font-weight:900;letter-spacing:8px;text-align:center;background:#f4f4f4;padding:16px;border-radius:10px;border:1px solid #ccc;">${token}</div>
+        <p style="margin:16px 0 10px;text-align:center;font-weight:700;">Open the reset page and we’ll prefill your code:</p>
+        <div style="text-align:center; margin-bottom:12px;">
+          <a href="${resetLink}" style="display:inline-block;background:#000;color:#fff;padding:14px 18px;border-radius:8px;text-decoration:none;font-weight:900;letter-spacing:0.08em;">Open reset page</a>
+        </div>
+        <p style="text-align:center; margin:10px 0 6px; color:#4b5563; font-size:13px;">If the button doesn’t work, copy this link into your browser:</p>
+        <p style="word-break:break-all;text-align:center;font-size:13px;margin:0 0 12px;">${resetLink}</p>
+        <p style="text-align:center;color:#6b7280;font-size:12px;margin:12px 0 0;">If this wasn’t you, ignore this email. The code expires in 1 hour.</p>
+      </div>
       `,
     });
 
-    return renderPage(null, successMsg);
+  // Redirect to reset page (no token in URL). Token will only prefill if user clicks the email link.
+  return res.redirect('/resetPassword?sent=1');
   } catch (err) {
     console.error('[forgotPassword] Error:', err.message);
     return renderPage('Something went wrong. Please try again.', null);
@@ -850,13 +860,14 @@ app.post('/forgotPassword', async (req, res) => {
 });
 
 app.get('/resetPassword', (req, res) => {
-  res.render('auth/resetPassword', { error: null, success: null });
+  const success = req.query.success || (req.query.sent ? 'We emailed you a reset code.' : null);
+  res.render('auth/resetPassword', { error: null, success, token: '' });
 });
 
 app.post('/resetPassword', async (req, res) => {
   const { token, newPassword, confirmPassword } = req.body;
   const renderPage = (error, success) =>
-    res.render('auth/resetPassword', { error, success });
+    res.render('auth/resetPassword', { error, success, token: '' });
 
   if (!token || !newPassword || !confirmPassword) return renderPage('All fields are required.', null);
   if (newPassword !== confirmPassword) return renderPage('Passwords do not match.', null);
@@ -889,7 +900,7 @@ app.post('/resetPassword', async (req, res) => {
       .update({ used: true })
       .eq('id', resetRecord.id);
 
-    return renderPage(null, 'Password updated successfully! You can now log in.');
+    return res.redirect('/?success=Password+updated.+Please+log+in.');
   } catch (err) {
     console.error('[resetPassword] Error:', err.message);
     return renderPage('Something went wrong. Please try again.', null);

@@ -26,6 +26,9 @@
     <% if (error) { %>
         <p class="error-msg"><%= error %></p>
     <% } %>
+    <% if (typeof success !== 'undefined' && success) { %>
+        <p class="success-msg"><%= success %></p>
+    <% } %>
 
     <form id="login-form">
         <label for="email">Email:</label>
@@ -37,17 +40,13 @@
         <br>
         <a href="/forgotPassword">Forgot Password?</a> 
         <button type="submit">Login</button>
-        <br>
-
-    <form id="register-form" action="/register" method="GET">
-        <button type="submit">Register</button>
     </form>
 
-    <form id="google-oauth-form" action="/auth/google" method="GET">
-        <button type="submit">Login with Google</button>
-    </form>
-
-    </form>
+    <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+        <form id="register-form" action="/register" method="GET" style="margin:0; flex:1; min-width:200px;">
+            <button type="submit">Register</button>
+        </form>
+    </div>
     </div>
 
     <%- include('partials/footer') %>
