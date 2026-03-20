@@ -313,6 +313,48 @@ app.delete('/api/storage/files/:id', requireAuth, async (req, res) => {
     }
 });
 
+// ----------------------
+// NEW: VIEW USER FILE ROUTE (Signed URL)
+// ----------------------
+app.get('/api/storage/view/:id', requireAuth, async (req, res) => {
+    try {
+        // Decode the URI to get the real file path
+        const id = decodeURIComponent(req.params.id);
+        
+        // Figure out which bucket to look in. We can accept a ?type= query from the frontend
+        let bucket = 'resumes';
+        if (req.query.type === 'cover' || id.toLowerCase().includes('cover')) {
+            bucket = 'cover-letters';
+        }
+
+        const userSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+            global: { headers: { Authorization: `Bearer ${req.token}` } }
+        });
+
+        // 1. Ask Supabase for a 60-second VIP Signed URL
+        let { data, error } = await userSupabase.storage.from(bucket).createSignedUrl(id, 60);
+
+        // 2. Fallback: If it wasn't in the first bucket, check the other one just in case!
+        if (error || !data) {
+            const backupBucket = bucket === 'resumes' ? 'cover-letters' : 'resumes';
+            const backup = await userSupabase.storage.from(backupBucket).createSignedUrl(id, 60);
+            data = backup.data;
+            error = backup.error;
+        }
+
+        if (error || !data) {
+            return res.status(404).json({ error: "File not found in storage." });
+        }
+
+        // 3. Return the secure temporary link to the frontend
+        res.json({ signedUrl: data.signedUrl });
+
+    } catch (err) {
+        console.error("View File Error:", err.message);
+        res.status(500).json({ error: "Failed to generate view link." });
+    }
+});
+
 import helmet from 'helmet';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);

@@ -510,33 +510,55 @@
       });
     };
 
-    // ─── Preview PDF in modal ──────────────────────────────────────────
-    window.previewDoc = (id, type) => {
-      const key  = type === 'resume' ? RESUME_KEY : COVER_KEY;
-      const item = loadItems(key).find(i => i.id === id);
-      if (!item?.dataUrl) return;
-      const overlay = document.createElement('div');
-      overlay.className = 'profile-modal-overlay';
-      overlay.innerHTML = `
-        <div class="profile-modal profile-modal-wide" role="dialog" aria-modal="true">
-          <div class="profile-modal-header">
-            <span style="font-weight:800;font-size:16px;">${escHtml(item.title||'Document')}</span>
-            <button class="profile-modal-close" aria-label="Close">✕</button>
-          </div>
-          <iframe src="${item.dataUrl}" class="profile-pdf-frame" title="PDF Preview"></iframe>
-          <div class="profile-modal-footer">
-            <a class="btn btn-primary" href="${item.dataUrl}" download="${escHtml((item.title||'file').replace(/[^a-z0-9]/gi,'_'))}.pdf">⬇ Download PDF</a>
-            ${type === 'resume' ? `<button class="btn btn-outline" id="previewAnalyzeBtn">🔬 Use for Analysis</button>` : ''}
-          </div>
-        </div>`;
-      document.body.appendChild(overlay);
-      document.body.style.overflow = 'hidden';
-      const close = () => { overlay.remove(); document.body.style.overflow = ''; };
-      overlay.querySelector('.profile-modal-close').addEventListener('click', close);
-      overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
-      overlay.querySelector('#previewAnalyzeBtn')?.addEventListener('click', () => {
-        close(); useForAnalysis(id, 'resume');
-      });
+    // ─── Preview PDF in modal (Cloud Version) ──────────────────────────
+    window.previewDoc = async (id, type) => {
+      try {
+        // 1. Fetch the temporary VIP Signed URL from our new backend route
+        const response = await fetch(`/api/storage/view/${encodeURIComponent(id)}?type=${type}`);
+        
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || 'Failed to load file view.');
+        }
+
+        const { signedUrl } = await response.json();
+
+        // 2. Grab the title from the local cache just to make the modal look nice
+        const key  = type === 'resume' ? RESUME_KEY : COVER_KEY;
+        const item = loadItems(key).find(i => i.id === id) || { title: 'Document' };
+
+        // 3. Build the modal and inject the secure Signed URL!
+        const overlay = document.createElement('div');
+        overlay.className = 'profile-modal-overlay';
+        overlay.innerHTML = `
+          <div class="profile-modal profile-modal-wide" role="dialog" aria-modal="true">
+            <div class="profile-modal-header">
+              <span style="font-weight:800;font-size:16px;">${escHtml(item.title)}</span>
+              <button class="profile-modal-close" aria-label="Close">✕</button>
+            </div>
+            <iframe src="${signedUrl}" class="profile-pdf-frame" title="PDF Preview"></iframe>
+            <div class="profile-modal-footer">
+              <a class="btn btn-primary" href="${signedUrl}" target="_blank" download="${escHtml((item.title).replace(/[^a-z0-9]/gi,'_'))}.pdf">⬇ Download PDF</a>
+              ${type === 'resume' ? `<button class="btn btn-outline" id="previewAnalyzeBtn">🔬 Use for Analysis</button>` : ''}
+            </div>
+          </div>`;
+          
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+        
+        const close = () => { overlay.remove(); document.body.style.overflow = ''; };
+        overlay.querySelector('.profile-modal-close').addEventListener('click', close);
+        overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+        
+        overlay.querySelector('#previewAnalyzeBtn')?.addEventListener('click', () => {
+          close(); 
+          useForAnalysis(id, 'resume');
+        });
+
+      } catch (error) {
+        console.error("View Error:", error);
+        showToast('❌ Error: ' + error.message);
+      }
     };
 
     // ─── Use for Analysis: store in sessionStorage, navigate to dashboard
