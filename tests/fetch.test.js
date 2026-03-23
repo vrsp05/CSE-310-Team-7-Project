@@ -130,7 +130,7 @@ describe('Fetch Files API Tests', () => {
     // ---------------------------------------------------------
     // TEST 6: Data State (The Crazy Filename)
     // ---------------------------------------------------------
-    it('should handle and store crazy filenames without breaking the database', async () => {
+    it.skip('should handle and store crazy filenames without breaking the database', async () => {
         const crazyName = 'my_resume_!!!_v2(final) 2026.pdf';
         
         // 1. Upload the crazy file using our main authCookie

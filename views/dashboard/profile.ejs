@@ -44,26 +44,22 @@
     <section class="profile-section" id="section-resumes">
       <div class="profile-section-header">
         <h2 class="profile-section-title">Saved Resumes</h2>
-        <button class="btn btn-primary" type="button" id="btnAddResume">+ Upload Resume PDF</button>
+        <button class="btn btn-primary" type="button" id="btnAddResume">+ Upload Resume (PDF/Word)</button>
       </div>
 
       <!-- Upload form -->
       <div class="profile-add-form" id="resumeForm" style="display:none;">
         <div class="profile-form-inner">
           <h3 class="profile-form-title">Upload Resume</h3>
-          <label class="profile-label">Title / Company <span style="color:#dc2626">*</span>
-            <input type="text" id="resumeTitle" class="profile-input" placeholder='e.g. "Google — Software Engineer"' />
-          </label>
-          <label class="profile-label">Notes (optional)
-            <textarea id="resumeNotes" class="profile-textarea" rows="2" placeholder="Job it was tailored for, date applied, etc."></textarea>
-          </label>
-          <label class="profile-label">Resume PDF <span style="color:#dc2626">*</span>
+          
+          <div class="profile-label">Resume (PDF/Word) <span style="color:#dc2626">*</span>
             <div class="profile-file-drop" id="resumeDropZone">
               <span class="profile-file-drop-icon">📄</span>
-              <span id="resumeDropLabel">Drag &amp; drop a PDF here, or click to browse</span>
+              <span id="resumeDropLabel">Drag &amp; drop a PDF or Word Doc here...</span>
               <input type="file" id="resumeFilePdf" accept=".pdf,.doc,.docx" class="profile-file-input-hidden" />
             </div>
-          </label>
+          </div>
+
           <div class="profile-form-actions">
             <button class="btn btn-primary" type="button" id="btnSaveResume">Save Resume</button>
             <button class="btn btn-outline" type="button" id="btnCancelResume">Cancel</button>
@@ -78,26 +74,22 @@
     <section class="profile-section" id="section-covers" style="display:none;">
       <div class="profile-section-header">
         <h2 class="profile-section-title">Saved Cover Letters</h2>
-        <button class="btn btn-primary" type="button" id="btnAddCover">+ Upload Cover Letter PDF</button>
+        <button class="btn btn-primary" type="button" id="btnAddCover">+ Upload Cover Letter (PDF/Word)</button>
       </div>
 
       <!-- Upload form -->
       <div class="profile-add-form" id="coverForm" style="display:none;">
         <div class="profile-form-inner">
           <h3 class="profile-form-title">Upload Cover Letter</h3>
-          <label class="profile-label">Title / Company <span style="color:#dc2626">*</span>
-            <input type="text" id="coverTitle" class="profile-input" placeholder='e.g. "Amazon — Cover Letter"' />
-          </label>
-          <label class="profile-label">Notes (optional)
-            <textarea id="coverNotes" class="profile-textarea" rows="2" placeholder="Notes about this cover letter..."></textarea>
-          </label>
-          <label class="profile-label">Cover Letter PDF <span style="color:#dc2626">*</span>
+          
+          <div class="profile-label">Cover Letter (PDF/Word) <span style="color:#dc2626">*</span>
             <div class="profile-file-drop" id="coverDropZone">
               <span class="profile-file-drop-icon">📝</span>
-              <span id="coverDropLabel">Drag &amp; drop a PDF here, or click to browse</span>
+              <span id="coverDropLabel">Drag &amp; drop a PDF or Word Doc here...</span>
               <input type="file" id="coverFilePdf" accept=".pdf,.doc,.docx" class="profile-file-input-hidden" />
             </div>
-          </label>
+          </div>
+
           <div class="profile-form-actions">
             <button class="btn btn-primary" type="button" id="btnSaveCover">Save Cover Letter</button>
             <button class="btn btn-outline" type="button" id="btnCancelCover">Cancel</button>
@@ -206,6 +198,25 @@
         document.getElementById('section-resumes').style.display = t === 'resumes' ? '' : 'none';
         document.getElementById('section-covers').style.display  = t === 'covers'  ? '' : 'none';
       });
+    });
+
+    // ─── Form Toggles (Open/Close Upload Menus) ────────────────────────
+    // Resume Form
+    document.getElementById('btnAddResume').addEventListener('click', () => {
+      const form = document.getElementById('resumeForm');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    });
+    document.getElementById('btnCancelResume').addEventListener('click', () => {
+      document.getElementById('resumeForm').style.display = 'none';
+    })
+
+    // Cover Letter Form
+    document.getElementById('btnAddCover').addEventListener('click', () => {
+      const form = document.getElementById('coverForm');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    });
+    document.getElementById('btnCancelCover').addEventListener('click', () => {
+      document.getElementById('coverForm').style.display = 'none';
     });
 
     // ─── Drag & Drop file zone setup ───────────────────────────────────
@@ -375,19 +386,20 @@
 
     // ─── Add Resume ────────────────────────────────────────────────────
     document.getElementById('btnSaveResume').addEventListener('click', async () => {
-      const title = document.getElementById('resumeTitle').value.trim();
-      const notes = document.getElementById('resumeNotes').value.trim();
       const file  = document.getElementById('resumeFilePdf').files?.[0];
+      if (!file)  { showToast('Please select a PDF or Word file.'); return; }
       
-      if (!title) { document.getElementById('resumeTitle').focus(); showToast('Please enter a title.'); return; }
-      if (!file)  { showToast('Please select a PDF file.'); return; }
+      // Automatically grab the original file name and remove the .pdf/.docx extension
+      const title = file.name.replace(/\.[^/.]+$/, ""); 
+      const notes = ""; 
       
       const btn = document.getElementById('btnSaveResume');
       btn.disabled = true; btn.textContent = 'Saving…';
+      
       try {
-  const upload = await uploadToSupabase(file, 'resumes');
-  const items = dedupByPath([{ id: upload.path, title, notes, dataUrl: upload.signedUrl || '', path: upload.path, score: null, createdAt: new Date().toISOString() }, ...loadItems(RESUME_KEY)]);
-  saveItems(RESUME_KEY, items);
+        const upload = await uploadToSupabase(file, 'resumes');
+        const items = dedupByPath([{ id: upload.path, title, notes, dataUrl: upload.signedUrl || '', path: upload.path, score: null, createdAt: new Date().toISOString() }, ...loadItems(RESUME_KEY)]);
+        saveItems(RESUME_KEY, items);
         document.getElementById('resumeForm').style.display = 'none';
         renderResumes();
         showToast('Resume saved!');
@@ -396,20 +408,23 @@
     });
 
     // ─── Add Cover Letter ──────────────────────────────────────────────
+    // ─── Add Cover Letter ──────────────────────────────────────────────
     document.getElementById('btnSaveCover').addEventListener('click', async () => {
-      const title = document.getElementById('coverTitle').value.trim();
-      const notes = document.getElementById('coverNotes').value.trim();
       const file  = document.getElementById('coverFilePdf').files?.[0];
+      if (!file)  { showToast('Please select a PDF or Word file.'); return; }
       
-      if (!title) { document.getElementById('coverTitle').focus(); showToast('Please enter a title.'); return; }
-      if (!file)  { showToast('Please select a PDF file.'); return; }
+      // Automatically grab the original file name
+      const title = file.name.replace(/\.[^/.]+$/, ""); 
+      const notes = "";
       
       const btn = document.getElementById('btnSaveCover');
       btn.disabled = true; btn.textContent = 'Saving…';
+      
+      // ... (Keep your existing try/catch block below here!)
       try {
-  const upload = await uploadToSupabase(file, 'cover-letters');
-  const items = dedupByPath([{ id: upload.path, title, notes, dataUrl: upload.signedUrl || '', path: upload.path, createdAt: new Date().toISOString() }, ...loadItems(COVER_KEY)]);
-  saveItems(COVER_KEY, items);
+        const upload = await uploadToSupabase(file, 'cover-letters');
+        const items = dedupByPath([{ id: upload.path, title, notes, dataUrl: upload.signedUrl || '', path: upload.path, createdAt: new Date().toISOString() }, ...loadItems(COVER_KEY)]);
+        saveItems(COVER_KEY, items);
         document.getElementById('coverForm').style.display = 'none';
         renderCovers();
         showToast('Cover letter saved!');
@@ -510,33 +525,55 @@
       });
     };
 
-    // ─── Preview PDF in modal ──────────────────────────────────────────
-    window.previewDoc = (id, type) => {
-      const key  = type === 'resume' ? RESUME_KEY : COVER_KEY;
-      const item = loadItems(key).find(i => i.id === id);
-      if (!item?.dataUrl) return;
-      const overlay = document.createElement('div');
-      overlay.className = 'profile-modal-overlay';
-      overlay.innerHTML = `
-        <div class="profile-modal profile-modal-wide" role="dialog" aria-modal="true">
-          <div class="profile-modal-header">
-            <span style="font-weight:800;font-size:16px;">${escHtml(item.title||'Document')}</span>
-            <button class="profile-modal-close" aria-label="Close">✕</button>
-          </div>
-          <iframe src="${item.dataUrl}" class="profile-pdf-frame" title="PDF Preview"></iframe>
-          <div class="profile-modal-footer">
-            <a class="btn btn-primary" href="${item.dataUrl}" download="${escHtml((item.title||'file').replace(/[^a-z0-9]/gi,'_'))}.pdf">⬇ Download PDF</a>
-            ${type === 'resume' ? `<button class="btn btn-outline" id="previewAnalyzeBtn">🔬 Use for Analysis</button>` : ''}
-          </div>
-        </div>`;
-      document.body.appendChild(overlay);
-      document.body.style.overflow = 'hidden';
-      const close = () => { overlay.remove(); document.body.style.overflow = ''; };
-      overlay.querySelector('.profile-modal-close').addEventListener('click', close);
-      overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
-      overlay.querySelector('#previewAnalyzeBtn')?.addEventListener('click', () => {
-        close(); useForAnalysis(id, 'resume');
-      });
+    // ─── Preview PDF in modal (Cloud Version) ──────────────────────────
+    window.previewDoc = async (id, type) => {
+      try {
+        // 1. Fetch the temporary VIP Signed URL from our new backend route
+        const response = await fetch(`/api/storage/view/${encodeURIComponent(id)}?type=${type}`);
+        
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || 'Failed to load file view.');
+        }
+
+        const { signedUrl } = await response.json();
+
+        // 2. Grab the title from the local cache just to make the modal look nice
+        const key  = type === 'resume' ? RESUME_KEY : COVER_KEY;
+        const item = loadItems(key).find(i => i.id === id) || { title: 'Document' };
+
+        // 3. Build the modal and inject the secure Signed URL!
+        const overlay = document.createElement('div');
+        overlay.className = 'profile-modal-overlay';
+        overlay.innerHTML = `
+          <div class="profile-modal profile-modal-wide" role="dialog" aria-modal="true">
+            <div class="profile-modal-header">
+              <span style="font-weight:800;font-size:16px;">${escHtml(item.title)}</span>
+              <button class="profile-modal-close" aria-label="Close">✕</button>
+            </div>
+            <iframe src="${signedUrl}" class="profile-pdf-frame" title="PDF Preview"></iframe>
+            <div class="profile-modal-footer">
+              <a class="btn btn-primary" href="${signedUrl}" target="_blank" download="${escHtml((item.title).replace(/[^a-z0-9]/gi,'_'))}.pdf">⬇ Download PDF</a>
+              ${type === 'resume' ? `<button class="btn btn-outline" id="previewAnalyzeBtn">🔬 Use for Analysis</button>` : ''}
+            </div>
+          </div>`;
+          
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+        
+        const close = () => { overlay.remove(); document.body.style.overflow = ''; };
+        overlay.querySelector('.profile-modal-close').addEventListener('click', close);
+        overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+        
+        overlay.querySelector('#previewAnalyzeBtn')?.addEventListener('click', () => {
+          close(); 
+          useForAnalysis(id, 'resume');
+        });
+
+      } catch (error) {
+        console.error("View Error:", error);
+        showToast('❌ Error: ' + error.message);
+      }
     };
 
     // ─── Use for Analysis: store in sessionStorage, navigate to dashboard
