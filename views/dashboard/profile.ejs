@@ -44,7 +44,7 @@
     <section class="profile-section" id="section-resumes">
       <div class="profile-section-header">
         <h2 class="profile-section-title">Saved Resumes</h2>
-        <button class="btn btn-primary" type="button" id="btnAddResume">+ Upload Resume PDF</button>
+        <button class="btn btn-primary" type="button" id="btnAddResume">+ Upload Resume (PDF/Word)</button>
       </div>
 
       <!-- Upload form -->
@@ -60,7 +60,7 @@
           <label class="profile-label">Resume PDF <span style="color:#dc2626">*</span>
             <div class="profile-file-drop" id="resumeDropZone">
               <span class="profile-file-drop-icon">📄</span>
-              <span id="resumeDropLabel">Drag &amp; drop a PDF here, or click to browse</span>
+              <span id="resumeDropLabel">Drag & drop a PDF or Word Doc here...</span>
               <input type="file" id="resumeFilePdf" accept=".pdf,.doc,.docx" class="profile-file-input-hidden" />
             </div>
           </label>
@@ -78,7 +78,7 @@
     <section class="profile-section" id="section-covers" style="display:none;">
       <div class="profile-section-header">
         <h2 class="profile-section-title">Saved Cover Letters</h2>
-        <button class="btn btn-primary" type="button" id="btnAddCover">+ Upload Cover Letter PDF</button>
+        <button class="btn btn-primary" type="button" id="btnAddCover">+ Upload Cover Letter (PDF/Word)</button>
       </div>
 
       <!-- Upload form -->
@@ -94,7 +94,7 @@
           <label class="profile-label">Cover Letter PDF <span style="color:#dc2626">*</span>
             <div class="profile-file-drop" id="coverDropZone">
               <span class="profile-file-drop-icon">📝</span>
-              <span id="coverDropLabel">Drag &amp; drop a PDF here, or click to browse</span>
+              <span id="coverDropLabel">Drag & drop a PDF or Word Doc here...</span>
               <input type="file" id="coverFilePdf" accept=".pdf,.doc,.docx" class="profile-file-input-hidden" />
             </div>
           </label>
@@ -206,6 +206,29 @@
         document.getElementById('section-resumes').style.display = t === 'resumes' ? '' : 'none';
         document.getElementById('section-covers').style.display  = t === 'covers'  ? '' : 'none';
       });
+    });
+
+    // ─── Form Toggles (Open/Close Upload Menus) ────────────────────────
+    // Resume Form
+    document.getElementById('btnAddResume').addEventListener('click', () => {
+      const form = document.getElementById('resumeForm');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    });
+    document.getElementById('btnCancelResume').addEventListener('click', () => {
+      document.getElementById('resumeForm').style.display = 'none';
+      document.getElementById('resumeTitle').value = ''; // Clear out the input
+      document.getElementById('resumeNotes').value = '';
+    });
+
+    // Cover Letter Form
+    document.getElementById('btnAddCover').addEventListener('click', () => {
+      const form = document.getElementById('coverForm');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    });
+    document.getElementById('btnCancelCover').addEventListener('click', () => {
+      document.getElementById('coverForm').style.display = 'none';
+      document.getElementById('coverTitle').value = ''; // Clear out the input
+      document.getElementById('coverNotes').value = '';
     });
 
     // ─── Drag & Drop file zone setup ───────────────────────────────────
