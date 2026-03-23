@@ -316,6 +316,7 @@
             </div>
             <div class="profile-card-actions">
               <button class="btn btn-outline btn-sm" data-action="preview" data-id="${item.id}" data-type="cover">👁 View</button>
+              <button class="btn btn-outline btn-sm" data-action="analyze" data-id="${item.id}" data-type="cover">🔬 Analyze</button>
               <button class="btn btn-outline btn-sm btn-danger" data-action="delete" data-id="${item.id}" data-type="cover">Delete</button>
             </div>
           </div>
@@ -379,9 +380,11 @@
       const btn = e.target.closest('[data-action]');
       if (!btn) return;
       const { action, id, type } = btn.dataset;
+      
       if (action === 'delete')       deleteItem(id, type);
       else if (action === 'edit')    editItem(id, type);
       else if (action === 'preview') previewDoc(id, type);
+      else if (action === 'analyze') useForAnalysis(id, type); // <-- ADDED THIS!
     });
 
     // ─── Add Resume ────────────────────────────────────────────────────
@@ -525,10 +528,10 @@
       });
     };
 
-    // ─── Preview PDF in modal (Cloud Version) ──────────────────────────
+    // ─── Preview PDF/Word in modal (Cloud Version) ─────────────────────
     window.previewDoc = async (id, type) => {
       try {
-        // 1. Fetch the temporary VIP Signed URL from our new backend route
+        // 1. Fetch the temporary VIP Signed URL from our backend
         const response = await fetch(`/api/storage/view/${encodeURIComponent(id)}?type=${type}`);
         
         if (!response.ok) {
@@ -538,11 +541,19 @@
 
         const { signedUrl } = await response.json();
 
-        // 2. Grab the title from the local cache just to make the modal look nice
+        // 2. Grab the title from the local cache
         const key  = type === 'resume' ? RESUME_KEY : COVER_KEY;
         const item = loadItems(key).find(i => i.id === id) || { title: 'Document' };
 
-        // 3. Build the modal and inject the secure Signed URL!
+        // 3. THE MAGIC HACK: Check if it is a Word Document
+        const isWordDoc = item.title.toLowerCase().endsWith('.doc') || item.title.toLowerCase().endsWith('.docx');
+        
+        // THE MAGIC HACK: Use Microsoft's official viewer for Word Docs!
+        const iframeSrc = isWordDoc 
+            ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(signedUrl)}` 
+            : signedUrl;
+
+        // 4. Build the modal
         const overlay = document.createElement('div');
         overlay.className = 'profile-modal-overlay';
         overlay.innerHTML = `
@@ -551,9 +562,11 @@
               <span style="font-weight:800;font-size:16px;">${escHtml(item.title)}</span>
               <button class="profile-modal-close" aria-label="Close">✕</button>
             </div>
-            <iframe src="${signedUrl}" class="profile-pdf-frame" title="PDF Preview"></iframe>
+            
+            <iframe src="${iframeSrc}" class="profile-pdf-frame" title="Document Preview"></iframe>
+            
             <div class="profile-modal-footer">
-              <a class="btn btn-primary" href="${signedUrl}" target="_blank" download="${escHtml((item.title).replace(/[^a-z0-9]/gi,'_'))}.pdf">⬇ Download PDF</a>
+              <a class="btn btn-primary" href="${signedUrl}" target="_blank" download="${escHtml((item.title).replace(/[^a-z0-9]/gi,'_'))}">⬇ Download Original</a>
               ${type === 'resume' ? `<button class="btn btn-outline" id="previewAnalyzeBtn">🔬 Use for Analysis</button>` : ''}
             </div>
           </div>`;
